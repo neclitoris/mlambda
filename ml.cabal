@@ -1,0 +1,71 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.37.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           ml
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/neclitoris/ml#readme>
+homepage:       https://github.com/neclitoris/ml#readme
+bug-reports:    https://github.com/neclitoris/ml/issues
+author:         neclitoris
+maintainer:     nas140301@gmail.com
+copyright:      2025 neclitoris
+license:        BSD-3-Clause
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/neclitoris/ml
+
+library
+  exposed-modules:
+      MLambda.Matrix
+  other-modules:
+      Paths_ml
+  autogen-modules:
+      Paths_ml
+  hs-source-dirs:
+      src
+  default-extensions:
+      BlockArguments
+      TypeFamilies
+      RankNTypes
+      PolyKinds
+      UndecidableInstances
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  build-depends:
+      base >=4.7 && <5
+    , blas-ffi
+    , vector
+  default-language: GHC2024
+
+test-suite ml-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_ml
+  autogen-modules:
+      Paths_ml
+  hs-source-dirs:
+      test
+  default-extensions:
+      BlockArguments
+      TypeFamilies
+      RankNTypes
+      PolyKinds
+      UndecidableInstances
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , blas-ffi
+    , ml
+    , tasty
+    , tasty-hunit
+    , vector
+  default-language: GHC2024
