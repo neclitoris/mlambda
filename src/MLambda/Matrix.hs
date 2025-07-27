@@ -11,7 +11,7 @@
 -- along with its instances and public interface.
 module MLambda.Matrix
   ( NDArr(..)
-  , (@)
+  , cross
   ) where
 
 import Data.Vector.Storable (Vector)
@@ -32,9 +32,9 @@ deriving instance (Eq e, Storable e) => Eq (NDArr dim e)
 deriving instance (Show e, Storable e) => Show (NDArr dim e)
 
 -- | Your usual matrix product. Calls into BLAS's @gemm@ operation.
-(@) :: forall n m k . (KnownNat n, KnownNat m, KnownNat k)
+cross :: forall n m k . (KnownNat n, KnownNat m, KnownNat k)
     => NDArr [m, k] Double -> NDArr [k, n] Double -> NDArr [m, n] Double
-MkNDArr a @ MkNDArr b = unsafePerformIO $ do
+MkNDArr a `cross` MkNDArr b = unsafePerformIO $ do
   let (afptr, _alen) = V.unsafeToForeignPtr0 a
       (bfptr, _blen) = V.unsafeToForeignPtr0 b
       m = fromInteger $ fromSNat (SNat @m)

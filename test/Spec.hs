@@ -27,5 +27,5 @@ c = MkNDArr [ -1
 tests :: TestTree
 tests = testGroup "Tests"
   [ testCase "Mul" $
-      a @ b @?= c
+      a `cross` b @?= c
   ]
