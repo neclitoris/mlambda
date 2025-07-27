@@ -49,85 +49,50 @@ jobs:
   #         path: '["src/", "test/"]'
   #         fail-on: warning
 
-  build-wasm:
-    name: GHC 9.12 on WASM
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Restore cached WASM toolchain
-        uses: actions/cache/restore@v4
-        id: wasm-cache
-        with:
-          key: wasm-toolchain
-          path: ~/.ghc-wasm
-
-      - name: Install WASM toolchain
-        if: steps.wasm-cache.outputs.cache-hit != 'true'
-        run: |
-          curl https://gitlab.haskell.org/haskell-wasm/ghc-wasm-meta/-/raw/master/bootstrap.sh | sh
-
-      - name: Save cached WASM toolchain
-        if: steps.wasm-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.ghc-wasm
-          key: ${{ steps.wasm-cache.outputs.cache-primary-key }}
-
-      - name: Configure & run WASM build
-        run: |
-          source ~/.ghc-wasm/env
-          ~/.ghc-wasm/add_to_github_path.sh
-          wasm32-wasi-cabal build all
+  # build-wasm:
+  #   name: GHC 9.12 on WASM
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #
+  #     - name: Restore cached WASM toolchain
+  #       uses: actions/cache/restore@v4
+  #       id: wasm-cache
+  #       with:
+  #         key: wasm-toolchain
+  #         path: ~/.ghc-wasm
+  #
+  #     - name: Install WASM toolchain
+  #       if: steps.wasm-cache.outputs.cache-hit != 'true'
+  #       run: |
+  #         curl https://gitlab.haskell.org/haskell-wasm/ghc-wasm-meta/-/raw/master/bootstrap.sh | sh
+  #
+  #     - name: Save cached WASM toolchain
+  #       if: steps.wasm-cache.outputs.cache-hit != 'true'
+  #       uses: actions/cache/save@v4
+  #       with:
+  #         path: ~/.ghc-wasm
+  #         key: ${{ steps.wasm-cache.outputs.cache-primary-key }}
+  #
+  #     - name: Configure & run WASM build
+  #       run: |
+  #         source ~/.ghc-wasm/env
+  #         ~/.ghc-wasm/add_to_github_path.sh
+  #         wasm32-wasi-cabal build all
 
   build:
-    name: GHC ${{ matrix.ghc-version }} on ${{ matrix.os }}
+    name: Stack on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        ghc-version: ['9.12.2']
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up GHC ${{ matrix.ghc-version }}
-        uses: haskell-actions/setup@v2
-        id: setup
+      - uses: freckle/stack-action@v5
         with:
-          ghc-version: ${{ matrix.ghc-version }}
-
-      - name: Configure the build
-        run: |
-          cabal configure -fdev --enable-tests --enable-benchmarks --disable-documentation
-          cabal build all --dry-run
-
-      - name: Restore cached dependencies
-        uses: actions/cache/restore@v4
-        id: cache
-        env:
-          key: ${{ runner.os }}-ghc-${{ steps.setup.outputs.ghc-version }}-cabal-${{ steps.setup.outputs.cabal-version }}
-        with:
-          path: ${{ steps.setup.outputs.cabal-store }}
-          key: ${{ env.key }}-plan-${{ hashFiles('**/plan.json') }}
-          restore-keys: ${{ env.key }}-
-
-      - name: Install dependencies
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: cabal build all --only-dependencies
-
-      - name: Save cached dependencies
-        uses: actions/cache/save@v4
-        if: steps.cache.outputs.cache-hit != 'true'
-        with:
-          path: ${{ steps.setup.outputs.cabal-store }}
-          key: ${{ steps.cache.outputs.cache-primary-key }}
-
-      - name: Build
-        run: cabal build all
-
-      - name: Run tests
-        run: cabal test all
+          stack-build-arguments: ${{ github.ref_name != 'main' && '--fast' || '' }} --pedantic
 
       - name: Check cabal file
         run: cabal check
