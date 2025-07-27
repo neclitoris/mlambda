@@ -3,7 +3,7 @@
 -- Description : Basic ndarray type.
 -- Copyright   : (c) neclitoris, 2025
 -- License     : BSD-3-Clause
--- Maintainer  : git@github.com:neclitoris/mlambda.git
+-- Maintainer  : nas140301@gmail.com
 -- Stability   : experimental
 -- Portability : portable
 --
