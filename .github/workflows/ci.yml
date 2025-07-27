@@ -101,7 +101,7 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           brew install openblas
-          export PKG_CONFIG_PATH="/opt/homebrew/opt/openblas/lib/pkgconfig"
+          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/opt/homebrew/opt/openblas/lib/pkgconfig" >> $env:GITHUB_ENV
 
       - name: Set up GHC ${{ matrix.ghc-version }}
         uses: haskell-actions/setup@v2
