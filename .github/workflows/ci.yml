@@ -86,10 +86,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest] # TODO add Windows when time comes
         ghc-version: ['9.12.2']
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install BLAS on ubuntu-latest
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt update
+          sudo apt install libopenblas-dev
+          sudo update-alternatives --config libblas.so.3
+
+      - name: Install BLAS on macos-latest
+        if: matrix.os == 'macos-latest'
+        run: brew install openblas
 
       - name: Set up GHC ${{ matrix.ghc-version }}
         uses: haskell-actions/setup@v2
