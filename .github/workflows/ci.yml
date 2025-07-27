@@ -49,7 +49,7 @@ jobs:
           path: '["src/", "test/"]'
           fail-on: warning
 
-  # build-wasm:
+  # build-wasm:  # TODO add WASM when time comes
   #   name: GHC 9.12 on WASM
   #   runs-on: ubuntu-latest
   #   steps:
@@ -86,7 +86,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest] # TODO add Windows when time comes
+        os: [ubuntu-latest] # TODO add MacOS and Windows when time comes
         ghc-version: ['9.12.2']
     steps:
       - uses: actions/checkout@v4
@@ -97,13 +97,6 @@ jobs:
           sudo apt update
           sudo apt install libopenblas-dev
 
-      - name: Install BLAS on macos-latest
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install openblas
-          export PKG_CONFIG_PATH="$PKG_CONFIG_PATH:/opt/homebrew/opt/openblas/lib/pkgconfig"
-          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" >> $GITHUB_ENV
-          pkg-config --exists "openblas"
       - name: Set up GHC ${{ matrix.ghc-version }}
         uses: haskell-actions/setup@v2
         id: setup
