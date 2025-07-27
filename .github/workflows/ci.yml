@@ -103,7 +103,7 @@ jobs:
           brew install openblas
           ls /opt/homebrew/opt/openblas/lib/pkgconfig
           echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/opt/homebrew/opt/openblas/lib/pkgconfig" >> $GITHUB_ENV
-
+          pkg-config --list-all
       - name: Set up GHC ${{ matrix.ghc-version }}
         uses: haskell-actions/setup@v2
         id: setup
