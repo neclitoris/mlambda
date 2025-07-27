@@ -96,11 +96,12 @@ jobs:
         run: |
           sudo apt update
           sudo apt install libopenblas-dev
-          sudo update-alternatives --config libblas.so.3
 
       - name: Install BLAS on macos-latest
         if: matrix.os == 'macos-latest'
-        run: brew install openblas
+        run: |
+          brew install openblas
+          export PKG_CONFIG_PATH="/opt/homebrew/opt/openblas/lib/pkgconfig"
 
       - name: Set up GHC ${{ matrix.ghc-version }}
         uses: haskell-actions/setup@v2
