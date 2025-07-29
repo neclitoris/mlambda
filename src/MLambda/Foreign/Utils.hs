@@ -1,3 +1,12 @@
+-- |
+-- Module      : MLambda.Matrix
+-- Description : Basic ndarray type.
+-- Copyright   : (c) neclitoris, 2025
+-- License     : BSD-3-Clause
+-- Maintainer  : nas140301@gmail.com
+-- Stability   : experimental
+-- Portability : portable
+--
 module MLambda.Foreign.Utils
   ( module Numeric.Netlib.Utility
   , asPtr

@@ -25,12 +25,9 @@ source-repository head
 
 library
   exposed-modules:
-      MLambda.Foreign.Utils
       MLambda.Matrix
   other-modules:
-      Paths_ml
-  autogen-modules:
-      Paths_ml
+      MLambda.Foreign.Utils
   hs-source-dirs:
       src
   default-extensions:

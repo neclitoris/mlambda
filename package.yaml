@@ -39,6 +39,8 @@ ghc-options:
 
 library:
   source-dirs: src
+  other-modules:
+  - MLambda.Foreign.Utils
 
 tests:
   ml-test:
