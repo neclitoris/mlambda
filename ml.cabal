@@ -27,9 +27,7 @@ library
   exposed-modules:
       MLambda.Matrix
   other-modules:
-      Paths_ml
-  autogen-modules:
-      Paths_ml
+      MLambda.Foreign.Utils
   hs-source-dirs:
       src
   default-extensions:
@@ -42,6 +40,8 @@ library
   build-depends:
       base >=4.7 && <5
     , blas-ffi
+    , mtl
+    , netlib-ffi
     , vector
   default-language: GHC2024
 
@@ -65,6 +65,8 @@ test-suite ml-test
       base >=4.7 && <5
     , blas-ffi
     , ml
+    , mtl
+    , netlib-ffi
     , tasty
     , tasty-hunit
     , vector
