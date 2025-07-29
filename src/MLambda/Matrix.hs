@@ -55,8 +55,7 @@ MkNDArr a `cross` MkNDArr b = unsafePerformIO . evalContT $ do
   kptr <- asPtr $ fromInteger k
   alpha <- asPtr 1
   beta <- asPtr 0
-  _ <- pure $
-    gemm mode mode nptr mptr kptr alpha
+  liftIO $ gemm mode mode nptr mptr kptr alpha
       bptr nptr
       aptr kptr
       beta cptr nptr
