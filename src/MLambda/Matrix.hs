@@ -50,9 +50,9 @@ MkNDArr a `cross` MkNDArr b = unsafePerformIO . evalContT $ do
   aptr <- asFPtr afptr
   bptr <- asFPtr bfptr
   cptr <- asFPtr cfptr
-  mptr <- asPtr $ fromIntegral m
-  nptr <- asPtr $ fromIntegral n
-  kptr <- asPtr $ fromIntegral k
+  mptr <- asPtr $ fromInteger m
+  nptr <- asPtr $ fromInteger n
+  kptr <- asPtr $ fromInteger k
   alpha <- asPtr 1
   beta <- asPtr 0
   _ <- pure $
