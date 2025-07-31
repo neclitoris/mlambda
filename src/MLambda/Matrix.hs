@@ -106,6 +106,6 @@ matT s = Code.do
             $ TH.mkBytes fptr (fromIntegral offset) (fromIntegral len)
   [||
     unsafePerformIO $ do
-      ptr <- newForeignPtr_ (Ptr $$(bytes))
+      ptr <- newForeignPtr_ (Ptr $$bytes)
       return $ MkNDArr $ V.unsafeFromForeignPtr0 ptr (m * n)
     ||]
