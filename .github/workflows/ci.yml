@@ -25,13 +25,7 @@ jobs:
         run: |
           curl -L https://github.com/haskell/stylish-haskell/releases/download/v$version/$toolname.tar.gz -o shs.tar.gz
           tar -xf shs.tar.gz && chmod +x $toolname/stylish-haskell
-          git ls-files -z '*.hs' | xargs -P $(nproc) -0 ./$toolname/stylish-haskell --inplace
-          rm -rf $toolname & rm shs.tar.gz
-
-      - name: Auto-commit format
-        uses: stefanzweifel/git-auto-commit-action@v6
-        with:
-          commit_message: stylish-haskell auto-commit
+          git ls-files -z '*.hs' | xargs -P $(nproc) -0 -I {} sh -c './$toolname/stylish-haskell {} | diff -u {} -'
 
   lint:
     runs-on: ubuntu-latest

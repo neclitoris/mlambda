@@ -1,6 +1,5 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
-
+{-# LANGUAGE TemplateHaskell #-}
 import Test.Tasty
 import Test.Tasty.HUnit
 
