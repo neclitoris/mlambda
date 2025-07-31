@@ -70,6 +70,12 @@ MkNDArr a `cross` MkNDArr b = unsafePerformIO . evalContT $ do
   let carr = V.unsafeFromForeignPtr0 cfptr len
   pure $ MkNDArr carr
 
+-- | `mat` is a quasi-quote used to safely define constant matrices.
+-- Usage:
+-- > $$[mat| 1 2 3
+-- >         4 5 6 |]
+-- This quote will fail if type of the expression it appears in
+-- is not a 2x3 matrix.
 mat :: Quote.QuasiQuoter
 mat = Quote.QuasiQuoter
   { quoteExp = \s -> [| matT s |]
