@@ -9,8 +9,8 @@
 --
 -- This module contains definition of 'NDArr' type of multidimensional arrays
 -- along with its instances and public interface.
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QualifiedDo #-}
+{-# LANGUAGE TemplateHaskell #-}
 module MLambda.Matrix
   ( NDArr(..)
   , cross
