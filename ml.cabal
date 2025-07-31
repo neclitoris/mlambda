@@ -42,6 +42,7 @@ library
     , blas-ffi
     , mtl
     , netlib-ffi
+    , template-haskell
     , vector
   default-language: GHC2024
 
@@ -69,5 +70,6 @@ test-suite ml-test
     , netlib-ffi
     , tasty
     , tasty-hunit
+    , template-haskell
     , vector
   default-language: GHC2024

@@ -24,6 +24,7 @@ dependencies:
 - vector
 - blas-ffi
 - netlib-ffi
+- template-haskell
 - mtl
 
 ghc-options:
