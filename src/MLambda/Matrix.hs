@@ -53,7 +53,7 @@ MkNDArr a `cross` MkNDArr b = unsafePerformIO . evalContT $ do
       n = fromSNat (SNat @n)
       k = fromSNat (SNat @k)
       len = fromInteger $ m * n
-  cfptr <- liftIO $ mallocForeignPtrBytes len
+  cfptr <- liftIO $ mallocForeignPtrArray len
   -- Fortran (and BLAS) uses column-major indexing,
   -- so we switch the inputs order.
   mode <- char 'N'
