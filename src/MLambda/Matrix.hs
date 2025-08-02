@@ -17,6 +17,7 @@ module MLambda.Matrix
   , mat
   ) where
 
+import Control.DeepSeq (NFData)
 import Control.Monad
 import Control.Monad.Cont
 import Control.Monad.IO.Class
@@ -40,6 +41,7 @@ newtype NDArr (dim :: [Natural]) e = MkNDArr (Vector e)
 
 deriving instance (Eq e, Storable e) => Eq (NDArr dim e)
 deriving instance (Show e, Storable e) => Show (NDArr dim e)
+deriving newtype instance NFData (NDArr dim e)
 
 -- | Your usual matrix product. Calls into BLAS's @gemm@ operation.
 cross :: forall n m k . (KnownNat n, KnownNat m, KnownNat k)
@@ -51,7 +53,7 @@ MkNDArr a `cross` MkNDArr b = unsafePerformIO . evalContT $ do
       n = fromSNat (SNat @n)
       k = fromSNat (SNat @k)
       len = fromInteger $ m * n
-  cfptr <- liftIO $ mallocForeignPtrBytes len
+  cfptr <- liftIO $ mallocForeignPtrArray len
   -- Fortran (and BLAS) uses column-major indexing,
   -- so we switch the inputs order.
   mode <- char 'N'
