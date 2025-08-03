@@ -103,6 +103,8 @@ benchmark ml-bench
     , ml
     , mtl
     , netlib-ffi
+    , normaldistribution
+    , random
     , tasty-bench
     , template-haskell
     , vector

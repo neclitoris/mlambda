@@ -55,6 +55,8 @@ benchmarks:
     - -with-rtsopts=-N
     dependencies:
     - ml
+    - normaldistribution
+    - random
     - tasty-bench
 
 tests:
