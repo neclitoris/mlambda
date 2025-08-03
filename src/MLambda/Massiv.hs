@@ -1,23 +1,20 @@
 {-# LANGUAGE RequiredTypeArguments #-}
 
-module MLambda.Massiv (Mt, fromVector, mprod, value) where
+module MLambda.Massiv (Mt, fromVector, mprod) where
+
+import MLambda.TypeLits (KnownNat, natVal)
 
 import Control.DeepSeq (NFData)
 import Data.Massiv.Array qualified as Massiv
-import Data.Proxy (Proxy (..))
-import GHC.TypeLits (KnownNat, natVal)
-import qualified Data.Vector.Storable as Vector
-import qualified Data.Massiv.Array.Manifest.Vector as Massiv
+import Data.Massiv.Array.Manifest.Vector qualified as Massiv
+import Data.Vector.Storable qualified as Vector
 
 newtype Mt r e m n = MkMt (Massiv.Matrix r e)
 
 deriving newtype instance NFData (Massiv.Matrix r e) => NFData (Mt r e m n)
 
-value :: forall k -> (KnownNat k, Num a) => a
-value k = fromInteger $ natVal (Proxy @k)
-
 size :: forall m n -> (KnownNat m, KnownNat n) => Massiv.Sz2
-size m n = Massiv.Sz (value m Massiv.:. value n)
+size m n = Massiv.Sz (natVal m Massiv.:. natVal n)
 
 fromVector ::
     forall k n e r m.

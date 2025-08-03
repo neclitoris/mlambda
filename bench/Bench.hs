@@ -1,14 +1,14 @@
 {-# LANGUAGE RequiredTypeArguments #-}
 
+import MLambda.Massiv (Mt, fromVector, mprod)
+import MLambda.Matrix (NDArr (MkNDArr), cross)
+import MLambda.TypeLits (KnownNat, natVal)
+
 import Data.Massiv.Array (Comp (Par), P)
 import Data.Random.Normal (normalIO)
-import Data.Vector.Storable (replicateM, Vector)
-import GHC.TypeLits (KnownNat)
+import Data.Vector.Storable (Vector, replicateM)
 import System.Random (mkStdGen, setStdGen)
-import Test.Tasty.Bench (bench, defaultMain, env, nf, bgroup, nfIO)
-
-import MLambda.Massiv (Mt, fromVector, mprod, value)
-import MLambda.Matrix (NDArr (MkNDArr), cross)
+import Test.Tasty.Bench (bench, bgroup, defaultMain, env, nf, nfIO)
 
 type M = 1000
 type K = 1000
@@ -18,7 +18,7 @@ setup :: IO (a -> b -> (a, b))
 setup = (,) <$ setStdGen (mkStdGen 0)
 
 mkVec :: forall m n -> (KnownNat m, KnownNat n) => IO (Vector Double)
-mkVec m n = replicateM (value m * value n) normalIO
+mkVec m n = replicateM (natVal m * natVal n) normalIO
 
 mkMt :: forall m n -> (KnownNat m, KnownNat n) => IO (Mt P Double m n)
 mkMt m n = mkVec m n >>= fromVector Par

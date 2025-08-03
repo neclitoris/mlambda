@@ -27,6 +27,7 @@ library
   exposed-modules:
       MLambda.Massiv
       MLambda.Matrix
+      MLambda.TypeLits
   other-modules:
       MLambda.Foreign.Utils
   hs-source-dirs:
