@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       MLambda.Matrix
+      MLambda.TypeLits
   other-modules:
       MLambda.Foreign.Utils
   hs-source-dirs:
@@ -40,6 +41,8 @@ library
   build-depends:
       base >=4.7 && <5
     , blas-ffi
+    , deepseq
+    , massiv
     , mtl
     , netlib-ffi
     , template-haskell
@@ -65,11 +68,44 @@ test-suite ml-test
   build-depends:
       base >=4.7 && <5
     , blas-ffi
+    , deepseq
+    , massiv
     , ml
     , mtl
     , netlib-ffi
     , tasty
     , tasty-hunit
+    , template-haskell
+    , vector
+  default-language: GHC2024
+
+benchmark ml-bench
+  type: exitcode-stdio-1.0
+  main-is: Bench.hs
+  other-modules:
+      Paths_ml
+  autogen-modules:
+      Paths_ml
+  hs-source-dirs:
+      bench
+  default-extensions:
+      BlockArguments
+      TypeFamilies
+      RankNTypes
+      PolyKinds
+      UndecidableInstances
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , blas-ffi
+    , deepseq
+    , massiv
+    , ml
+    , mtl
+    , netlib-ffi
+    , normaldistribution
+    , random
+    , tasty-bench
     , template-haskell
     , vector
   default-language: GHC2024
