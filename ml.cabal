@@ -25,7 +25,6 @@ source-repository head
 
 library
   exposed-modules:
-      MLambda.Massiv
       MLambda.Matrix
       MLambda.TypeLits
   other-modules:

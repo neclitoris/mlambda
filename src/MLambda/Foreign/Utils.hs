@@ -20,7 +20,6 @@ import Foreign.Ptr
 import Foreign.Storable
 import Numeric.Netlib.Utility
 
-
 asPtr :: Storable a => a -> ContT r IO (Ptr a)
 asPtr = ContT . with
 

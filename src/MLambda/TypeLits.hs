@@ -12,9 +12,9 @@
 -- This module reexports typeclasses from 'GHC.TypeLits'
 -- and defines more convenient interface
 -- using new @RequiredTypeArguments@ language extension.
-module MLambda.TypeLits (KnownNat, natVal) where
+module MLambda.TypeLits (Natural, KnownNat, natVal) where
 
-import GHC.TypeLits (KnownNat, fromSNat, natSing)
+import GHC.TypeLits (KnownNat, Natural, fromSNat, natSing)
 
 -- | Get a term-level representation of a type-level 'GHC.TypeLits.Nat'.
 natVal :: forall n -> (KnownNat n, Num a) => a
