@@ -18,4 +18,4 @@ import GHC.TypeLits (KnownNat, Natural, fromSNat, natSing)
 
 -- | Get a term-level representation of a type-level 'GHC.TypeLits.Nat'.
 natVal :: forall n -> (KnownNat n, Num a) => a
-natVal n = fromInteger $ fromSNat (natSing @n)
+natVal n = fromInteger $ fromSNat $ natSing @n

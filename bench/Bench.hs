@@ -20,7 +20,7 @@ mkNd m n = MkNDArr <$> replicateM (natVal m * natVal n) normalIO
 
 main :: IO ()
 main = defaultMain
-  [ bench "random init" $ nfIO (mkNd M N)
+  [ bench "random init" $ nfIO $ mkNd M N
   , env (setup <*> mkNd M K <*> mkNd K N) \input ->
     bgroup "matmul"
     [ bench "Massiv" $ nf (uncurry crossMassiv) input

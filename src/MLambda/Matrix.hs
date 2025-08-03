@@ -31,7 +31,6 @@ import Control.Monad.IO.Class
 import Data.Massiv.Array qualified as Massiv
 import Data.Massiv.Array.Manifest.Vector qualified as Massiv
 import Data.Vector.Storable qualified as Storable
-import Data.Vector.Storable qualified as V
 import Foreign.ForeignPtr
 import Foreign.Storable
 import GHC.IO hiding (liftIO)
@@ -64,14 +63,14 @@ toMassiv = Massiv.fromVector' Massiv.Par (massivSize m n) . runNDArr
 crossMassiv ::
   (KnownNat m, KnownNat k, KnownNat n) =>
   NDArr [m, k] Double -> NDArr [k, n] Double -> NDArr [m, n] Double
-crossMassiv a b = fromMassiv (toMassiv a Massiv.!><! toMassiv b)
+crossMassiv a b = fromMassiv $ toMassiv a Massiv.!><! toMassiv b
 
 -- | Your usual matrix product. Calls into BLAS's @gemm@ operation.
 cross :: forall n m k . (KnownNat n, KnownNat m, KnownNat k)
     => NDArr [m, k] Double -> NDArr [k, n] Double -> NDArr [m, n] Double
-MkNDArr a `cross` MkNDArr b = unsafePerformIO . evalContT $ do
-  let (afptr, _alen) = V.unsafeToForeignPtr0 a
-      (bfptr, _blen) = V.unsafeToForeignPtr0 b
+MkNDArr a `cross` MkNDArr b = unsafePerformIO $ evalContT do
+  let (afptr, _alen) = Storable.unsafeToForeignPtr0 a
+      (bfptr, _blen) = Storable.unsafeToForeignPtr0 b
       len = natVal m * natVal n
   cfptr <- liftIO $ mallocForeignPtrArray len
   -- Fortran (and BLAS) uses column-major indexing,
@@ -89,8 +88,8 @@ MkNDArr a `cross` MkNDArr b = unsafePerformIO . evalContT $ do
       bptr nptr
       aptr kptr
       beta cptr nptr
-  let carr = V.unsafeFromForeignPtr0 cfptr len
-  return (MkNDArr carr)
+  let carr = Storable.unsafeFromForeignPtr0 cfptr len
+  pure $ MkNDArr carr
 
 -- | `mat` is a quasi-quote used to safely define constant matrices.
 -- Usage:
@@ -119,14 +118,16 @@ matT s = Code.do
         $ lines s
   when (length l /= natVal m) $ fail "Wrong row count"
   when (any ((/= natVal n) . length) l) $ fail "Wrong column count"
-  let dat = V.fromList $ concat l
-      (fptr, offset, len) = V.unsafeToForeignPtr $ V.unsafeCast dat
+  let dat = Storable.fromList $ concat l
+      (fptr, offset, len) =
+        Storable.unsafeToForeignPtr $ Storable.unsafeCast dat
       bytes = TH.unsafeCodeCoerce
             $ TH.litE $ TH.bytesPrimL
-            $ TH.mkBytes fptr (fromIntegral offset) (fromIntegral len)
+            $ TH.mkBytes fptr (fromIntegral offset)
+            $ fromIntegral len
       size = natVal m * natVal n
   [||
-    unsafePerformIO $ do
-      ptr <- newForeignPtr_ (Ptr $$bytes)
-      return $ MkNDArr (V.unsafeFromForeignPtr0 ptr size)
+    unsafePerformIO do
+      ptr <- newForeignPtr_ $ Ptr $$bytes
+      pure $ MkNDArr $ Storable.unsafeFromForeignPtr0 ptr size
     ||]
