@@ -40,6 +40,7 @@ import Control.Monad.ST (runST)
 import Data.List (intersperse)
 import Data.Massiv.Array qualified as Massiv
 import Data.Massiv.Array.Manifest.Vector qualified as Massiv
+import Data.Maybe
 import Data.Vector.Storable qualified as Storable
 import Data.Vector.Storable.Mutable qualified as Mutable
 import Foreign.ForeignPtr
@@ -47,7 +48,6 @@ import Foreign.Storable
 import GHC.IO hiding (liftIO)
 import GHC.Ptr
 import Language.Haskell.TH qualified as TH
-import Language.Haskell.TH.CodeDo qualified as Code
 import Language.Haskell.TH.Quote qualified as Quote
 import Numeric.BLAS.FFI.Double
 
@@ -125,38 +125,35 @@ infixl 7 `crossMassiv`
 -- is not a 2x3 matrix.
 mat :: Quote.QuasiQuoter
 mat = Quote.QuasiQuoter
-  { quoteExp = \s -> [| matT s |]
+  { quoteExp = matE
   , quotePat = error "Not implemented"
   , quoteType = error "Not implemented"
   , quoteDec = error "Not implemented"
   }
 
-matT :: forall e m n .
-  ( Storable e
-  , Read e
-  , KnownNat m
-  , KnownNat n
-  ) => String -> TH.CodeQ (NDArr [m, n] e)
-matT s = Code.do
-  let l = map (map (read @e) . words)
+matE :: (MonadFail m, TH.Quote m) => String -> m TH.Exp
+matE s = do
+  let l = map (map (read @Double) . words)
         $ takeWhile (not . null)
         $ dropWhile null
         $ lines s
-  when (length l /= natVal m) $ fail "Wrong row count"
-  when (any ((/= natVal n) . length) l) $ fail "Wrong column count"
+  let m  = length l
+      tm = TH.litT $ TH.numTyLit $ toInteger m
+  n <- maybe (fail "Empty matrix specified") (pure . length) $ listToMaybe l
+  let tn = TH.litT $ TH.numTyLit $ toInteger n
+  when (any ((/= n) . length) l) $ fail "Wrong column count"
   let dat = Storable.fromList $ concat l
       (fptr, offset, len) =
         Storable.unsafeToForeignPtr $ Storable.unsafeCast dat
-      bytes = TH.unsafeCodeCoerce
-            $ TH.litE $ TH.bytesPrimL
+      bytes = TH.litE $ TH.bytesPrimL
             $ TH.mkBytes fptr (fromIntegral offset)
             $ fromIntegral len
-      size = natVal m * natVal n
-  [||
+      size = m * n
+  [|
     unsafePerformIO do
-      ptr <- newForeignPtr_ $ Ptr $$bytes
-      pure $ MkNDArr $ Storable.unsafeFromForeignPtr0 ptr size
-    ||]
+      ptr <- newForeignPtr_ $ Ptr $bytes
+      pure $ MkNDArr @'[$tm, $tn] @Double $ Storable.unsafeFromForeignPtr0 ptr size
+    |]
 
 -- | `Index dim` is the type of indices of an array of type `NDArr dim e`.
 data Index (dim :: [Natural]) where
