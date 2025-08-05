@@ -20,5 +20,6 @@ import GHC.TypeLits (KnownNat, Natural, fromSNat, natSing)
 natVal :: forall n -> (KnownNat n, Num a) => a
 natVal n = fromInteger $ fromSNat $ natSing @n
 
+-- | Get a number of elements in a bounded enumeration type.
 enumSize :: forall a -> (Bounded a, Enum a) => Int
 enumSize t = fromEnum (maxBound @t) - fromEnum (minBound @t) + 1

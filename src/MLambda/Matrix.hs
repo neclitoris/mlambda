@@ -25,6 +25,7 @@ module MLambda.Matrix
   , fromIndex
   -- * Array access
   , at
+  , row
   ) where
 
 import MLambda.Foreign.Utils (asFPtr, asPtr, char)
@@ -50,7 +51,7 @@ import Language.Haskell.TH.CodeDo qualified as Code
 import Language.Haskell.TH.Quote qualified as Quote
 import Numeric.BLAS.FFI.Double
 
--- | 'NDArr [n1,...nd] e' is a type of arrays with dimensions @n1 x ... x nd@
+-- | `NDArr [n1,...nd] e` is a type of arrays with dimensions @n1 x ... x nd@
 -- consisting of elements of type @e@.
 newtype NDArr (dim :: [Natural]) e = MkNDArr { runNDArr :: Storable.Vector e }
   deriving (Eq, NFData)
@@ -60,11 +61,11 @@ instance (Show e, Storable e) => Show (NDArr '[n] e) where
 
 instance (KnownNat n, Enum (Index (a:r)), Bounded (Index (a:r))
          , Show (NDArr (a:r) e), Storable e) => Show (NDArr (n:a:r) e) where
-  showsPrec _ = (\f -> showString "[" . f . showString "]")
+  showsPrec _ = (showString "[" .) . (. showString "]")
     . foldl' (.) id
     . intersperse (showString ",\n")
     . map shows
-    . ([row i | i <- [0..natVal n - 1 :: Int]] <*>)
+    . ([row i | i <- [0..maxBound]] <*>)
     . (:[])
 
 massivSize :: forall m n -> (KnownNat m, KnownNat n) => Massiv.Sz2
@@ -157,6 +158,7 @@ matT s = Code.do
       pure $ MkNDArr $ Storable.unsafeFromForeignPtr0 ptr size
     ||]
 
+-- | `Index dim` is the type of indices of an array of type `NDArr dim e`.
 data Index (dim :: [Natural]) where
   (:.) :: Index '[n] -> Index d -> Index (n : d)
   I :: Int -> Index '[n]
@@ -204,9 +206,13 @@ instance (KnownNat n, Enum (Index (a:r)), Bounded (Index (a:r))) => Enum (Index 
   pred (h :. t) | t == minBound = pred h :. maxBound
   pred (h :. t) = h :. pred t
 
+-- | Access array element by its index. This is a total function.
 at :: (Storable e, Enum (Index dim)) => NDArr dim e -> Index dim -> e
 (MkNDArr v) `at` i = v Storable.! fromEnum i
 
+-- | Construct an array from a function `f` that maps indices to elements.
+-- This function is strict and therefore `f` can't refer to the result of
+-- `fromFunction f`.
 fromIndex :: forall dim e . (Enum (Index dim), Bounded (Index dim), Storable e)
           => (Index dim -> e) -> NDArr dim e
 fromIndex f = runST do
@@ -215,13 +221,14 @@ fromIndex f = runST do
   vec <- Storable.unsafeFreeze mvec
   pure $ MkNDArr vec
 
-row :: forall n r e i {a} {b} .
+-- | Extract a "row" from the array. If you're used to C or numpy arrays,
+-- this is similar to a[i].
+row :: forall n r e {a} {b} .
     ( KnownNat n
     , Enum (Index r)
     , Bounded (Index r)
     , r ~ (a:b)
-    , Integral i
     , Storable e)
-    => i -> NDArr (n:r) e -> NDArr r e
-row i = let i' = (fromIntegral i :. minBound) :: Index (n:r)
+    => Index '[n] -> NDArr (n:r) e -> NDArr r e
+row i = let i' = (i :. minBound) :: Index (n:r)
          in MkNDArr . Storable.slice (fromEnum i') (enumSize (Index r)) . runNDArr
