@@ -151,7 +151,7 @@ matE s = do
             $ fromIntegral len
       size = m * n
   [|
-    unsafePerformIO do
+    unsafeDupablePerformIO do
       ptr <- newForeignPtr_ $ Ptr $bytes
       pure $ MkNDArr @'[$tm, $tn] @Double $ Storable.unsafeFromForeignPtr0 ptr size
     |]
