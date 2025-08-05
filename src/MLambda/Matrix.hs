@@ -1,3 +1,4 @@
+{-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE RequiredTypeArguments #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -14,10 +15,15 @@
 -- This module contains definition of 'NDArr' type of multidimensional arrays
 -- along with its instances and public interface.
 module MLambda.Matrix
-  ( NDArr (..)
+  ( NDArr(..)
+  -- * Matrix operations
   , cross
   , crossMassiv
+  -- * Array creation
   , mat
+  , fromIndex
+  -- * Array access
+  , at
   ) where
 
 import MLambda.Foreign.Utils (asFPtr, asPtr, char)
@@ -28,9 +34,11 @@ import Control.Exception (assert)
 import Control.Monad
 import Control.Monad.Cont
 import Control.Monad.IO.Class
+import Control.Monad.ST (runST)
 import Data.Massiv.Array qualified as Massiv
 import Data.Massiv.Array.Manifest.Vector qualified as Massiv
 import Data.Vector.Storable qualified as Storable
+import Data.Vector.Storable.Mutable qualified as Mutable
 import Foreign.ForeignPtr
 import Foreign.Storable
 import GHC.IO hiding (liftIO)
@@ -91,6 +99,8 @@ MkNDArr a `cross` MkNDArr b = unsafePerformIO $ evalContT do
   let carr = Storable.unsafeFromForeignPtr0 cfptr len
   pure $ MkNDArr carr
 
+infixl 7 `cross`
+
 -- | `mat` is a quasi-quote used to safely define constant matrices.
 -- Usage:
 -- > $$[mat| 1 2 3
@@ -131,3 +141,60 @@ matT s = Code.do
       ptr <- newForeignPtr_ $ Ptr $$bytes
       pure $ MkNDArr $ Storable.unsafeFromForeignPtr0 ptr size
     ||]
+
+data Index (dim :: [Natural]) where
+  (:.) :: Index '[n] -> Index d -> Index (n : d)
+  I :: Int -> Index '[n]
+
+deriving instance Eq (Index dim)
+deriving instance Ord (Index dim)
+
+{-# COMPLETE (:.) #-}
+{-# COMPLETE I #-}
+
+infixr 5 :.
+
+instance KnownNat n => Num (Index '[n]) where
+  fromInteger = I . (`mod` natVal n) . fromInteger
+  abs = id
+  signum _ = 1
+  negate (I m) = I $ natVal n - 1 - m
+  (I a) + (I b) = I $ (a + b) `mod` natVal n
+  (I a) * (I b) = I $ (a * b) `mod` natVal n
+
+instance KnownNat n => Bounded (Index '[n]) where
+  minBound = 0
+  maxBound = natVal n - 1
+
+instance (KnownNat n, Bounded (Index r)) => Bounded (Index (n : r)) where
+  minBound = 0 :. minBound
+  maxBound = natVal n - 1 :. maxBound
+
+instance {-# OVERLAPPING #-} KnownNat n => Enum (Index '[n]) where
+  fromEnum (I m) = m
+  toEnum = I . (`mod` natVal n)
+  succ (I m) | m == natVal n - 1 = error "Undefined succ"
+  succ (I m) = I (m + 1)
+  pred (I 0) = error "Undefined pred"
+  pred (I m) = I (m - 1)
+
+instance (KnownNat n, Enum (Index r), Bounded (Index r)) => Enum (Index (n : r)) where
+  fromEnum (I n :. t) = enumSize (Index r) * n + fromEnum t
+  toEnum m = I q :. toEnum r
+    where
+      (q, r) = m `quotRem` natVal n
+  succ (h :. t) | t == maxBound = succ h :. minBound
+  succ (h :. t) = h :. succ t
+  pred (h :. t) | t == minBound = pred h :. maxBound
+  pred (h :. t) = h :. pred t
+
+at :: (Storable e, Enum (Index dim)) => NDArr dim e -> Index dim -> e
+(MkNDArr v) `at` i = v Storable.! fromEnum i
+
+fromIndex :: forall dim e . (Enum (Index dim), Bounded (Index dim), Storable e)
+          => (Index dim -> e) -> NDArr dim e
+fromIndex f = runST do
+  mvec <- Mutable.new (enumSize (Index dim))
+  forM_ [minBound..maxBound] (\i -> Mutable.write mvec (fromEnum i) (f i))
+  vec <- Storable.unsafeFreeze mvec
+  pure $ MkNDArr vec
