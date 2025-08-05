@@ -141,6 +141,7 @@ matE s = do
       tm = TH.litT $ TH.numTyLit $ toInteger m
   n <- maybe (fail "Empty matrix specified") (pure . length) $ listToMaybe l
   let tn = TH.litT $ TH.numTyLit $ toInteger n
+  when (n == 0) $ fail "Empty matrix specified"
   when (any ((/= n) . length) l) $ fail "Wrong column count"
   let dat = Storable.fromList $ concat l
       (fptr, offset, len) =
