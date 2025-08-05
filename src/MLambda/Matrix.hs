@@ -36,6 +36,7 @@ import Control.Monad
 import Control.Monad.Cont
 import Control.Monad.IO.Class
 import Control.Monad.ST (runST)
+import Data.List (intersperse)
 import Data.Massiv.Array qualified as Massiv
 import Data.Massiv.Array.Manifest.Vector qualified as Massiv
 import Data.Vector.Storable qualified as Storable
@@ -52,7 +53,19 @@ import Numeric.BLAS.FFI.Double
 -- | 'NDArr [n1,...nd] e' is a type of arrays with dimensions @n1 x ... x nd@
 -- consisting of elements of type @e@.
 newtype NDArr (dim :: [Natural]) e = MkNDArr { runNDArr :: Storable.Vector e }
-  deriving (Eq, Show, NFData)
+  deriving (Eq, NFData)
+
+instance (Show e, Storable e) => Show (NDArr '[n] e) where
+  show = show . runNDArr
+
+instance (KnownNat n, Enum (Index (a:r)), Bounded (Index (a:r))
+         , Show (NDArr (a:r) e), Storable e) => Show (NDArr (n:a:r) e) where
+  showsPrec _ = (\f -> showString "[" . f . showString "]")
+    . foldl' (.) id
+    . intersperse (showString ",\n")
+    . map shows
+    . ([row i | i <- [0..natVal n - 1 :: Int]] <*>)
+    . (:[])
 
 massivSize :: forall m n -> (KnownNat m, KnownNat n) => Massiv.Sz2
 massivSize m n = natVal m `Massiv.Sz2` natVal n
@@ -101,6 +114,7 @@ MkNDArr a `cross` MkNDArr b = unsafePerformIO $ evalContT do
   pure $ MkNDArr carr
 
 infixl 7 `cross`
+infixl 7 `crossMassiv`
 
 -- | `mat` is a quasi-quote used to safely define constant matrices.
 -- Usage:
@@ -164,15 +178,15 @@ instance KnownNat n => Num (Index '[n]) where
   (I a) + (I b) = I $ (a + b) `mod` natVal n
   (I a) * (I b) = I $ (a * b) `mod` natVal n
 
-instance {-# OVERLAPPING #-} KnownNat n => Bounded (Index '[n]) where
+instance KnownNat n => Bounded (Index '[n]) where
   minBound = I 0
   maxBound = I $ natVal n - 1
 
-instance (KnownNat n, Bounded (Index r)) => Bounded (Index (n : r)) where
+instance (KnownNat n, Bounded (Index (a:r))) => Bounded (Index (n:a:r)) where
   minBound = I 0 :. minBound
   maxBound = I (natVal n - 1) :. maxBound
 
-instance {-# OVERLAPPING #-} KnownNat n => Enum (Index '[n]) where
+instance KnownNat n => Enum (Index '[n]) where
   fromEnum (I m) = m
   toEnum = I . (`mod` natVal n)
   succ (I m) | m == natVal n - 1 = error "Undefined succ"
@@ -180,11 +194,11 @@ instance {-# OVERLAPPING #-} KnownNat n => Enum (Index '[n]) where
   pred (I 0) = error "Undefined pred"
   pred (I m) = I (m - 1)
 
-instance (KnownNat n, Enum (Index r), Bounded (Index r)) => Enum (Index (n : r)) where
-  fromEnum (I n :. t) = enumSize (Index r) * n + fromEnum t
+instance (KnownNat n, Enum (Index (a:r)), Bounded (Index (a:r))) => Enum (Index (n:a:r)) where
+  fromEnum (I n :. t) = enumSize (Index (a:r)) * n + fromEnum t
   toEnum m = I q :. toEnum t
     where
-      (q, t) = m `quotRem` enumSize (Index r)
+      (q, t) = m `quotRem` enumSize (Index (a:r))
   succ (h :. t) | t == maxBound = succ h :. minBound
   succ (h :. t) = h :. succ t
   pred (h :. t) | t == minBound = pred h :. maxBound
@@ -200,3 +214,14 @@ fromIndex f = runST do
   forM_ [minBound..maxBound] (\i -> Mutable.write mvec (fromEnum i) (f i))
   vec <- Storable.unsafeFreeze mvec
   pure $ MkNDArr vec
+
+row :: forall n r e i {a} {b} .
+    ( KnownNat n
+    , Enum (Index r)
+    , Bounded (Index r)
+    , r ~ (a:b)
+    , Integral i
+    , Storable e)
+    => i -> NDArr (n:r) e -> NDArr r e
+row i = let i' = (fromIntegral i :. minBound) :: Index (n:r)
+         in MkNDArr . Storable.slice (fromEnum i') (enumSize (Index r)) . runNDArr
