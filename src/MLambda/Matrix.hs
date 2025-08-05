@@ -16,6 +16,7 @@
 -- along with its instances and public interface.
 module MLambda.Matrix
   ( NDArr(..)
+  , Index((:.))
   -- * Matrix operations
   , cross
   , crossMassiv
@@ -148,6 +149,7 @@ data Index (dim :: [Natural]) where
 
 deriving instance Eq (Index dim)
 deriving instance Ord (Index dim)
+deriving instance Show (Index dim)
 
 {-# COMPLETE (:.) #-}
 {-# COMPLETE I #-}
@@ -162,13 +164,13 @@ instance KnownNat n => Num (Index '[n]) where
   (I a) + (I b) = I $ (a + b) `mod` natVal n
   (I a) * (I b) = I $ (a * b) `mod` natVal n
 
-instance KnownNat n => Bounded (Index '[n]) where
-  minBound = 0
-  maxBound = natVal n - 1
+instance {-# OVERLAPPING #-} KnownNat n => Bounded (Index '[n]) where
+  minBound = I 0
+  maxBound = I $ natVal n - 1
 
 instance (KnownNat n, Bounded (Index r)) => Bounded (Index (n : r)) where
-  minBound = 0 :. minBound
-  maxBound = natVal n - 1 :. maxBound
+  minBound = I 0 :. minBound
+  maxBound = I (natVal n - 1) :. maxBound
 
 instance {-# OVERLAPPING #-} KnownNat n => Enum (Index '[n]) where
   fromEnum (I m) = m
@@ -180,9 +182,9 @@ instance {-# OVERLAPPING #-} KnownNat n => Enum (Index '[n]) where
 
 instance (KnownNat n, Enum (Index r), Bounded (Index r)) => Enum (Index (n : r)) where
   fromEnum (I n :. t) = enumSize (Index r) * n + fromEnum t
-  toEnum m = I q :. toEnum r
+  toEnum m = I q :. toEnum t
     where
-      (q, r) = m `quotRem` natVal n
+      (q, t) = m `quotRem` enumSize (Index r)
   succ (h :. t) | t == maxBound = succ h :. minBound
   succ (h :. t) = h :. succ t
   pred (h :. t) | t == minBound = pred h :. maxBound

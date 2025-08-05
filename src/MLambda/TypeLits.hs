@@ -21,4 +21,4 @@ natVal :: forall n -> (KnownNat n, Num a) => a
 natVal n = fromInteger $ fromSNat $ natSing @n
 
 enumSize :: forall a -> (Bounded a, Enum a) => Int
-enumSize t = fromEnum (maxBound @t) - fromEnum (minBound @t)
+enumSize t = fromEnum (maxBound @t) - fromEnum (minBound @t) + 1
