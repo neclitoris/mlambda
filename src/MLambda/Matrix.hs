@@ -31,13 +31,16 @@ module MLambda.Matrix
 import MLambda.Foreign.Utils (asFPtr, asPtr, char)
 import MLambda.TypeLits
 
+import Control.Applicative
 import Control.DeepSeq (NFData)
 import Control.Exception (assert)
 import Control.Monad
 import Control.Monad.Cont
 import Control.Monad.IO.Class
 import Control.Monad.ST (runST)
-import Data.List (intersperse)
+import Data.Char
+import Data.Either (fromLeft, fromRight, isLeft)
+import Data.List (findIndices, intersperse)
 import Data.Massiv.Array qualified as Massiv
 import Data.Massiv.Array.Manifest.Vector qualified as Massiv
 import Data.Maybe
@@ -47,9 +50,11 @@ import Foreign.ForeignPtr
 import Foreign.Storable
 import GHC.IO hiding (liftIO)
 import GHC.Ptr
+import Language.Haskell.Meta.Parse qualified as Haskell
 import Language.Haskell.TH qualified as TH
 import Language.Haskell.TH.Quote qualified as Quote
 import Numeric.BLAS.FFI.Double
+import Text.ParserCombinators.ReadP qualified as P
 
 -- | `NDArr [n1,...nd] e` is a type of arrays with dimensions @n1 x ... x nd@
 -- consisting of elements of type @e@.
@@ -131,30 +136,53 @@ mat = Quote.QuasiQuoter
   , quoteDec = error "Not implemented"
   }
 
-matE :: (MonadFail m, TH.Quote m) => String -> m TH.Exp
+matE :: String -> TH.Q TH.Exp
 matE s = do
-  let l = map (map (read @Double) . words)
-        $ takeWhile (not . null)
-        $ dropWhile null
-        $ lines s
-  let m  = length l
-      tm = TH.litT $ TH.numTyLit $ toInteger m
+  let expr prev =
+        TH.dyn <$> liftM2 (:) (P.satisfy isAlpha) (P.munch isAlphaNum)
+          <|>
+        do
+          str <- P.manyTill P.get $ P.char ')'
+          case Haskell.parseExp (prev ++ str ++ ")") of
+            Right e -> pure $ pure e
+            Left _  -> expr (prev ++ str ++ ")")
+  let item = Right <$> P.readS_to_P (reads @Double)
+         <|> Left <$> (P.char '$' *> expr "")
+  let space = P.skipMany $ P.char ' '
+  let line = space *>P.endBy1 item space
+  let matrix = P.skipSpaces *> P.sepBy1 line (P.char '\n') <* P.skipSpaces <* P.eof
+  l <- maybe (fail "Failed parse") (pure . fst) $ listToMaybe $ P.readP_to_S matrix s
+  let m = length l
   n <- maybe (fail "Empty matrix specified") (pure . length) $ listToMaybe l
-  let tn = TH.litT $ TH.numTyLit $ toInteger n
   when (n == 0) $ fail "Empty matrix specified"
   when (any ((/= n) . length) l) $ fail "Wrong column count"
-  let dat = Storable.fromList $ concat l
+  let indices = concat $ zipWith (<*>) (map ((:[]) . (+)) [0, n..]) $ map (findIndices isLeft) l
+  let exps = map (fromLeft (TH.dyn "bruh")) $ concatMap (filter isLeft) l
+  let l' = map (fromRight 0) $ concat l
+  let dat = Storable.fromList l'
       (fptr, offset, len) =
         Storable.unsafeToForeignPtr $ Storable.unsafeCast dat
-      bytes = TH.litE $ TH.bytesPrimL
+
+  let bytes = TH.litE $ TH.bytesPrimL
             $ TH.mkBytes fptr (fromIntegral offset)
             $ fromIntegral len
       size = m * n
-  [|
-    unsafeDupablePerformIO do
-      ptr <- newForeignPtr_ $ Ptr $bytes
-      pure $ MkNDArr @'[$tm, $tn] @Double $ Storable.unsafeFromForeignPtr0 ptr size
-    |]
+      tm = TH.litT $ TH.numTyLit $ toInteger m
+      tn = TH.litT $ TH.numTyLit $ toInteger n
+  let raw = [|
+        unsafeDupablePerformIO do
+          ptr <- newForeignPtr_ $ Ptr $bytes
+          pure $ Storable.unsafeFromForeignPtr0 ptr size
+        |]
+  if null indices
+    then [| MkNDArr @'[$tm, $tn] @Double $raw |]
+    else [| runST do
+              mvec <- Storable.thaw $raw
+              $(TH.doE $ flip map (zip indices exps)
+                \(i, e) -> TH.noBindS [| Mutable.write mvec i $e |])
+              vec <- Storable.unsafeFreeze mvec
+              pure $ MkNDArr @'[$tm, $tn] @Double vec
+      |]
 
 -- | `Index dim` is the type of indices of an array of type `NDArr dim e`.
 data Index (dim :: [Natural]) where

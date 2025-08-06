@@ -42,6 +42,7 @@ library
       base >=4.7 && <5
     , blas-ffi
     , deepseq
+    , haskell-src-meta
     , massiv
     , mtl
     , netlib-ffi
@@ -69,6 +70,7 @@ test-suite ml-test
       base >=4.7 && <5
     , blas-ffi
     , deepseq
+    , haskell-src-meta
     , massiv
     , ml
     , mtl
@@ -99,6 +101,7 @@ benchmark ml-bench
       base >=4.7 && <5
     , blas-ffi
     , deepseq
+    , haskell-src-meta
     , massiv
     , ml
     , mtl
