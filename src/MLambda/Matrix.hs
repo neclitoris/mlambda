@@ -23,6 +23,7 @@ module MLambda.Matrix
   -- * Array creation
   , mat
   , fromIndex
+  , fromIndexM
   -- * Array access
   , at
   , row
@@ -271,9 +272,18 @@ infixl 9 `at`
 -- prop> fromIndex f `at` i == f i
 fromIndex :: forall dim e . (Enum (Index dim), Bounded (Index dim), Storable e)
           => (Index dim -> e) -> NDArr dim e
-fromIndex f = runST do
+fromIndex f = runST $ fromIndexM $ pure . f
+
+-- | Same as @`fromIndex`@, but monadic.
+fromIndexM :: forall dim m e .
+           ( Mutable.PrimMonad m
+           , Enum (Index dim)
+           , Bounded (Index dim)
+           , Storable e)
+           => (Index dim -> m e) -> m (NDArr dim e)
+fromIndexM f = do
   mvec <- Mutable.new (enumSize (Index dim))
-  forM_ [minBound..maxBound] (\i -> Mutable.write mvec (fromEnum i) (f i))
+  forM_ [minBound..maxBound] (\i -> f i >>= Mutable.write mvec (fromEnum i))
   vec <- Storable.unsafeFreeze mvec
   pure $ MkNDArr vec
 
