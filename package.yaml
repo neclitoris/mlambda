@@ -28,6 +28,7 @@ dependencies:
 - netlib-ffi
 - template-haskell
 - vector
+- haskell-src-meta
 
 ghc-options:
 - -Wall
