@@ -1,7 +1,9 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE RequiredTypeArguments #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
 
 -- |
 -- Module      : MLambda.Matrix
@@ -24,9 +26,11 @@ module MLambda.Matrix
   , mat
   , fromIndex
   , fromIndexM
+  , stack
   -- * Array access
   , at
   , row
+  , rows
   ) where
 
 import MLambda.Foreign.Utils (asFPtr, asPtr, char)
@@ -51,7 +55,6 @@ import Foreign.ForeignPtr
 import Foreign.Storable
 import GHC.IO hiding (liftIO)
 import GHC.Ptr
-import GHC.TypeLits (type (<=))
 import Language.Haskell.Meta.Parse qualified as Haskell
 import Language.Haskell.TH qualified as TH
 import Language.Haskell.TH.Quote qualified as Quote
@@ -66,14 +69,16 @@ newtype NDArr (dim :: [Natural]) e = MkNDArr { runNDArr :: Storable.Vector e }
 instance (Show e, Storable e) => Show (NDArr '[n] e) where
   show = show . runNDArr
 
-instance (KnownNat n, 1 <= n, Enum (Index (a:r)), Bounded (Index (a:r))
-         , Show (NDArr (a:r) e), Storable e) => Show (NDArr (n:a:r) e) where
-  showsPrec _ = (showString "[" .) . (. showString "]")
-    . foldl' (.) id
-    . intersperse (showString ",\n")
-    . map shows
-    . ([row i | i <- [0..maxBound]] <*>)
-    . (:[])
+instance (Ix (n:a:r), Show (NDArr (a:r) e), Storable e) => Show (NDArr (n:a:r) e) where
+  showsPrec _ =
+    case inst @(n:a:r) of
+      II :.= _ ->
+        (showString "[" .) . (. showString "]")
+        . foldl' (.) id
+        . intersperse (showString ",\n")
+        . map shows
+        . ([row i | i <- [minBound..maxBound]] <*>)
+        . (:[])
 
 massivSize :: forall m n -> (KnownNat m, KnownNat n) => Massiv.Sz2
 massivSize m n = natVal m `Massiv.Sz2` natVal n
@@ -222,6 +227,21 @@ deriving instance Show (Index dim)
 
 infixr 5 :.
 
+data IndexI (dim :: [Natural]) where
+  (:.=) :: Ix (d : ds) => IndexI '[n] -> IndexI (d : ds) -> IndexI (n : d : ds)
+  II :: Ix '[n] => IndexI '[n]
+
+infixr 5 :.=
+
+class (Bounded (Index dim), Enum (Index dim)) => Ix dim where
+  inst :: IndexI dim
+
+instance (KnownNat n, 1 <= n) => Ix '[n] where
+  inst = II
+
+instance (KnownNat n, 1 <= n, Ix (d:ds)) => Ix (n:d:ds) where
+  inst = II :.= inst
+
 instance (KnownNat n, 1 <= n) => Num (Index '[n]) where
   fromInteger = I . fromInteger . (`mod` natVal n)
   abs = id
@@ -230,11 +250,11 @@ instance (KnownNat n, 1 <= n) => Num (Index '[n]) where
   (I a) + (I b) = I $ (a + b) `mod` natVal n
   (I a) * (I b) = I $ (a * b) `mod` natVal n
 
-instance KnownNat n => Bounded (Index '[n]) where
+instance (KnownNat n, 1 <= n) => Bounded (Index '[n]) where
   minBound = I 0
   maxBound = I $ natVal n - 1
 
-instance (KnownNat n, Bounded (Index (a:r))) => Bounded (Index (n:a:r)) where
+instance (KnownNat n, 1 <= n, Bounded (Index (a:r))) => Bounded (Index (n:a:r)) where
   minBound = minBound :. minBound
   maxBound = maxBound :. maxBound
 
@@ -258,7 +278,7 @@ instance (KnownNat n, 1 <= n, Enum (Index (a:r)), Bounded (Index (a:r)))
   pred (h :. t) = h :. pred t
 
 -- | Access array element by its index. This is a total function.
-at :: (Storable e, Enum (Index dim)) => NDArr dim e -> Index dim -> e
+at :: (Storable e, Ix dim) => NDArr dim e -> Index dim -> e
 (MkNDArr v) `at` i = v Storable.! fromEnum i
 
 infixl 9 `at`
@@ -270,16 +290,11 @@ infixl 9 `at`
 -- Property:
 --
 -- prop> fromIndex f `at` i == f i
-fromIndex :: forall dim e . (Enum (Index dim), Bounded (Index dim), Storable e)
-          => (Index dim -> e) -> NDArr dim e
+fromIndex :: forall dim e . (Ix dim, Storable e) => (Index dim -> e) -> NDArr dim e
 fromIndex f = runST $ fromIndexM $ pure . f
 
 -- | Same as @`fromIndex`@, but monadic.
-fromIndexM :: forall dim m e .
-           ( Mutable.PrimMonad m
-           , Enum (Index dim)
-           , Bounded (Index dim)
-           , Storable e)
+fromIndexM :: forall dim m e . ( Mutable.PrimMonad m, Ix dim, Storable e)
            => (Index dim -> m e) -> m (NDArr dim e)
 fromIndexM f = do
   mvec <- Mutable.new (enumSize (Index dim))
@@ -289,13 +304,53 @@ fromIndexM f = do
 
 -- | Extract a "row" from the array. If you're used to C or numpy arrays,
 -- this is similar to @a[i]@.
-row :: forall n r e {a} {b} .
-    ( KnownNat n
-    , 1 <= n
-    , Enum (Index r)
-    , Bounded (Index r)
+row :: forall r e {n} {a} {b} .
+    ( Ix (n:r)
     , r ~ (a:b)
     , Storable e)
     => Index '[n] -> NDArr (n:r) e -> NDArr r e
-row i = let i' = (i :. minBound) :: Index (n:r)
-         in MkNDArr . Storable.slice (fromEnum i') (enumSize (Index r)) . runNDArr
+row i =
+  case inst @(n:r) of
+    II :.= _ -> let i' = i :. (minBound :: Index r)
+                 in MkNDArr
+                  . Storable.slice (fromEnum i') (enumSize (Index r))
+                  . runNDArr
+
+rows :: forall r e {n} {a} {b} .
+     ( Ix (n:r)
+     , r ~ (a:b)
+     , Storable e)
+     => NDArr (n:r) e -> [NDArr r e]
+rows a = case inst @(n:r) of
+           II :.= _ -> [row i a | i <- [minBound..maxBound]]
+
+data CNat where
+  Z :: CNat
+  S :: CNat -> CNat
+
+type family ToCNat n where
+  ToCNat 0 = Z
+  ToCNat i = S (ToCNat (i - 1))
+
+type family FromCNat n where
+  FromCNat Z = 0
+  FromCNat (S n) = 1 + FromCNat n
+
+class Stack i d1 d2 e where
+  type Stacked i d1 d2 :: [Natural]
+  stackImpl :: NDArr d1 e -> NDArr d2 e -> NDArr (Stacked i d1 d2) e
+
+instance Storable e => Stack Z (n:d) (m:d) e where
+  type Stacked Z (n:d) (m:d) = m+n:d
+  stackImpl a b = MkNDArr $ Storable.concat [runNDArr a, runNDArr b]
+
+instance (1 <= n, KnownNat n, Ix d1, Ix d2
+         , Stack i d1 d2 e, d1 ~ r1:rs1, d2 ~ r2:rs2, Storable e)
+    => Stack (S i) (n:d1) (n:d2) e where
+  type Stacked (S i) (n:d1) (n:d2) = n : Stacked i d1 d2
+  stackImpl a b = MkNDArr $ Storable.concat $
+    zipWith (\a' b' -> runNDArr $ stackImpl @i @d1 @d2 a' b') (rows a) (rows b)
+
+stack :: forall i -> forall d1 d2 e . Stack (ToCNat i) d1 d2 e
+      => NDArr d1 e -> NDArr d2 e -> NDArr (Stacked (ToCNat i) d1 d2) e
+stack i = stackImpl @(ToCNat i)
