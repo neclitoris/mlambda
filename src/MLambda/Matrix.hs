@@ -18,6 +18,8 @@
 module MLambda.Matrix
   ( NDArr
   , Index((:.))
+  , IndexI(..)
+  , Ix(..)
   -- * Matrix operations
   , cross
   , crossMassiv
@@ -210,7 +212,8 @@ matE s = do
 -- Instances are provided for convenient use:
 --
 -- - number literals work as one-dimensional indices of any size
--- (if the number is outside the index range, modulo is taken, so -1 refers to the largest index)
+-- (if the number is outside the index range, modulo is taken, so -1 refers to the largest
+-- index)
 -- - @(:.)@ prepends a one-dimensional index to another index
 -- - @`minBound`@ represents the smallest index (first element in an n-dimensional array),
 -- @`maxBound`@ represents the largest (last element)
@@ -226,12 +229,22 @@ deriving instance Show (Index dim)
 
 infixr 5 :.
 
+-- | A helper type that holds instances for everything you can get by pattern matching on
+-- an @`Index`@ value. If you need to get instances for a head/tail of an @`Index`@,
+-- pattern matching on a value of this type will bring them into the scope.
+--
+-- > f :: Ix (d : ds) => Index (d : ds) -> r
+-- > f (i :. j) = case inst @(d : ds) of
+-- >                _ :.= _ -> f j  -- @f j@ can be called here because we have @Ix ds@ now
+-- > f i        = ...
 data IndexI (dim :: [Natural]) where
   (:.=) :: Ix (d : ds) => IndexI '[n] -> IndexI (d : ds) -> IndexI (n : d : ds)
   II :: Ix '[n] => IndexI '[n]
 
 infixr 5 :.=
 
+-- | A class used both as a shorthand for useful @`Index`@ instances and a way to obtain
+-- a value of @`IndexI`@.
 class (Bounded (Index dim), Enum (Index dim)) => Ix dim where
   inst :: IndexI dim
 
@@ -315,6 +328,7 @@ row i =
                   . Storable.slice (fromEnum i') (enumSize (Index r))
                   . runNDArr
 
+-- | Extract all "rows" from the array as a list.
 rows :: forall r e {n} {a} {b} .
      ( Ix (n:r)
      , r ~ (a:b)
@@ -343,13 +357,14 @@ instance Storable e => Stack Z (n:d) (m:d) e where
   type Stacked Z (n:d) (m:d) = m+n:d
   stackImpl a b = MkNDArr $ Storable.concat [runNDArr a, runNDArr b]
 
-instance (1 <= n, KnownNat n, Ix d1, Ix d2
-         , Stack i d1 d2 e, d1 ~ r1:rs1, d2 ~ r2:rs2, Storable e)
+instance (Ix (n:d1), Ix (n:d2) , Stack i d1 d2 e, d1 ~ r1:rs1, d2 ~ r2:rs2, Storable e)
     => Stack (S i) (n:d1) (n:d2) e where
   type Stacked (S i) (n:d1) (n:d2) = n : Stacked i d1 d2
   stackImpl a b = MkNDArr $ Storable.concat $
     zipWith (\a' b' -> runNDArr $ stackImpl @i @d1 @d2 a' b') (rows a) (rows b)
 
+-- | @stack i@ stacks arrays along the axis @i@. All other axes are required
+-- to be the same lengths.
 stack :: forall i -> forall d1 d2 e . Stack (ToCNat i) d1 d2 e
       => NDArr d1 e -> NDArr d2 e -> NDArr (Stacked (ToCNat i) d1 d2) e
 stack i = stackImpl @(ToCNat i)
