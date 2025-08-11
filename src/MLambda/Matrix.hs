@@ -1,4 +1,3 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE RequiredTypeArguments #-}
@@ -56,6 +55,7 @@ import Foreign.ForeignPtr
 import Foreign.Storable
 import GHC.IO hiding (liftIO)
 import GHC.Ptr
+import GHC.TypeError (ErrorMessage (..), TypeError)
 import Language.Haskell.Meta.Parse qualified as Haskell
 import Language.Haskell.TH qualified as TH
 import Language.Haskell.TH.Quote qualified as Quote
@@ -229,31 +229,6 @@ deriving instance Show (Index dim)
 
 infixr 5 :.
 
--- | A helper type that holds instances for everything you can get by pattern matching on
--- an @`Index`@ value. If you need to get instances for a head/tail of an @`Index`@,
--- pattern matching on a value of this type will bring them into the scope.
---
--- > f :: Ix (d : ds) => Index (d : ds) -> r
--- > f (i :. j) = case inst @(d : ds) of
--- >                _ :.= _ -> f j  -- @f j@ can be called here because we have @Ix ds@ now
--- > f i        = ...
-data IndexI (dim :: [Natural]) where
-  (:.=) :: Ix (d : ds) => IndexI '[n] -> IndexI (d : ds) -> IndexI (n : d : ds)
-  II :: Ix '[n] => IndexI '[n]
-
-infixr 5 :.=
-
--- | A class used both as a shorthand for useful @`Index`@ instances and a way to obtain
--- a value of @`IndexI`@.
-class (Bounded (Index dim), Enum (Index dim)) => Ix dim where
-  inst :: IndexI dim
-
-instance (KnownNat n, 1 <= n) => Ix '[n] where
-  inst = II
-
-instance (KnownNat n, 1 <= n, Ix (d:ds)) => Ix (n:d:ds) where
-  inst = II :.= inst
-
 instance (KnownNat n, 1 <= n) => Num (Index '[n]) where
   fromInteger = I . fromInteger . (`mod` natVal n)
   abs = id
@@ -289,6 +264,31 @@ instance (KnownNat n, 1 <= n, Enum (Index (a:r)), Bounded (Index (a:r)))
   pred (h :. t) | t == minBound = pred h :. maxBound
   pred (h :. t) = h :. pred t
 
+-- | A helper type that holds instances for everything you can get by pattern matching on
+-- an @`Index`@ value. If you need to get instances for a head/tail of an @`Index`@,
+-- pattern matching on a value of this type will bring them into the scope.
+--
+-- > f :: Ix (d : ds) => Index (d : ds) -> r
+-- > f (i :. j) = case inst @(d : ds) of
+-- >                _ :.= _ -> f j  -- @f j@ can be called here because we have @Ix ds@ now
+-- > f i        = ...
+data IndexI (dim :: [Natural]) where
+  (:.=) :: Ix (d : ds) => IndexI '[n] -> IndexI (d : ds) -> IndexI (n : d : ds)
+  II :: (KnownNat n, 1 <= n) => IndexI '[n]
+
+infixr 5 :.=
+
+-- | A class used both as a shorthand for useful @`Index`@ instances and a way to obtain
+-- a value of @`IndexI`@.
+class (Bounded (Index dim), Enum (Index dim)) => Ix dim where
+  inst :: IndexI dim
+
+instance (KnownNat n, 1 <= n) => Ix '[n] where
+  inst = II
+
+instance (KnownNat n, 1 <= n, Ix (d:ds)) => Ix (n:d:ds) where
+  inst = II :.= inst
+
 -- | Access array element by its index. This is a total function.
 at :: (Storable e, Ix dim) => NDArr dim e -> Index dim -> e
 (MkNDArr v) `at` i = v Storable.! fromEnum i
@@ -306,7 +306,7 @@ fromIndex :: forall dim e . (Ix dim, Storable e) => (Index dim -> e) -> NDArr di
 fromIndex f = runST $ fromIndexM $ pure . f
 
 -- | Same as @`fromIndex`@, but monadic.
-fromIndexM :: forall dim m e . ( Mutable.PrimMonad m, Ix dim, Storable e)
+fromIndexM :: forall dim m e . (Mutable.PrimMonad m, Ix dim, Storable e)
            => (Index dim -> m e) -> m (NDArr dim e)
 fromIndexM f = do
   mvec <- Mutable.new (enumSize (Index dim))
@@ -337,34 +337,27 @@ rows :: forall r e {n} {a} {b} .
 rows a = case inst @(n:r) of
            II :.= _ -> [row i a | i <- [minBound..maxBound]]
 
-data CNat where
-  Z :: CNat
-  S :: CNat -> CNat
-
-type family ToCNat n where
-  ToCNat 0 = Z
-  ToCNat i = S (ToCNat (i - 1))
-
-type family FromCNat n where
-  FromCNat Z = 0
-  FromCNat (S n) = 1 + FromCNat n
-
-class Stack i d1 d2 e where
-  type Stacked i d1 d2 :: [Natural]
-  stackImpl :: NDArr d1 e -> NDArr d2 e -> NDArr (Stacked i d1 d2) e
-
-instance Storable e => Stack Z (n:d) (m:d) e where
-  type Stacked Z (n:d) (m:d) = m+n:d
-  stackImpl a b = MkNDArr $ Storable.concat [runNDArr a, runNDArr b]
-
-instance (Ix (n:d1), Ix (n:d2) , Stack i d1 d2 e, d1 ~ r1:rs1, d2 ~ r2:rs2, Storable e)
-    => Stack (S i) (n:d1) (n:d2) e where
-  type Stacked (S i) (n:d1) (n:d2) = n : Stacked i d1 d2
-  stackImpl a b = MkNDArr $ Storable.concat $
-    zipWith (\a' b' -> runNDArr $ stackImpl @i @d1 @d2 a' b') (rows a) (rows b)
+-- | @Stack i d1 d2@ are dimensions of an array which is a result of stacking
+-- arrays of dimensions @d1@ and @d2@ along axis @i@.
+type family Stack i d1 d2 where
+  Stack 0 (n : d1) (m : d2) = n + m : Unify "Dimensions" d1 d2
+  Stack i (n : d1) (m : d2) = Unify "Sizes" n m : Stack (i - 1) d1 d2
+  Stack i d1 d2 = TypeError (
+    Text "Not enough dimensions to stack along axis "
+    :<>: ShowType i :<>: Text ":" :$$: ShowType d1 :$$: ShowType d2)
 
 -- | @stack i@ stacks arrays along the axis @i@. All other axes are required
 -- to be the same lengths.
-stack :: forall i -> forall d1 d2 e . Stack (ToCNat i) d1 d2 e
-      => NDArr d1 e -> NDArr d2 e -> NDArr (Stacked (ToCNat i) d1 d2) e
-stack i = stackImpl @(ToCNat i)
+stack ::
+  forall n -> (KnownNat n, Ix d1, Ix d2, Ix (Stack n d1 d2), Storable e) =>
+  NDArr d1 e -> NDArr d2 e -> NDArr (Stack n d1 d2) e
+stack n = \(a :: NDArr d1 e) (b :: NDArr d2 e) ->
+  inst @(Stack n d1 d2) `seq` MkNDArr $ go (natVal n) inst inst a b
+  where
+    go ::
+      Storable e => Natural -> IndexI d1 -> IndexI d2 ->
+      NDArr d1 e -> NDArr d2 e -> Storable.Vector e
+    go 0 _ _ = \a b -> Storable.concat [runNDArr a, runNDArr b]
+    go r (II :.= i) (II :.= j) = \a b ->
+      Storable.concat $ zipWith (go (r - 1) i j) (rows a) (rows b)
+    go _ _ _ = error "stack: impossible"
