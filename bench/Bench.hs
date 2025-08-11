@@ -1,10 +1,11 @@
 {-# LANGUAGE RequiredTypeArguments #-}
 
-import GHC.TypeLits (type (<=))
 import MLambda.Matrix
+import MLambda.NDArr
 import MLambda.TypeLits (KnownNat)
 
 import Data.Random.Normal (normalIO)
+import GHC.TypeLits (type (<=))
 import System.Random (mkStdGen, setStdGen)
 import Test.Tasty.Bench (bench, bgroup, defaultMain, env, nf, nfIO)
 

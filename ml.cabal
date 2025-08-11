@@ -25,7 +25,9 @@ source-repository head
 
 library
   exposed-modules:
+      MLambda.Index
       MLambda.Matrix
+      MLambda.NDArr
       MLambda.TypeLits
   other-modules:
       MLambda.Foreign.Utils
