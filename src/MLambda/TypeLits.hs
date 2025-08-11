@@ -14,8 +14,8 @@
 -- using new @RequiredTypeArguments@ language extension.
 module MLambda.TypeLits (module GHC.TypeNats, natVal, enumSize, Unify) where
 
-import GHC.TypeNats hiding (natVal)
 import GHC.TypeError (ErrorMessage (..), TypeError)
+import GHC.TypeNats hiding (natVal)
 
 -- | Get a term-level representation of a type-level 'GHC.TypeLits.Nat'.
 natVal :: forall n -> (KnownNat n, Num a) => a
