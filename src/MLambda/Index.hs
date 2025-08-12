@@ -84,8 +84,9 @@ consIndex (I x) = \case
 
 -- | Concatenate two indices together
 concatIndex :: Index xs -> Index ys -> Index (xs ++ ys)
-concatIndex (I x) = consIndex (I x)
-concatIndex (I x :. xs) = consIndex (I x) . concatIndex xs
+concatIndex = \case
+  I x -> consIndex (I x)
+  I x :. xs -> consIndex (I x) . concatIndex xs
 
 -- | A helper type that holds instances for everything you can get by pattern matching on
 -- an @`Index`@ value. If you need to get instances for a head/tail of an @`Index`@,
