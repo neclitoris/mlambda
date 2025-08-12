@@ -9,7 +9,14 @@
 --
 -- This module contains definition of 'Index' type of multidimensional array
 -- indices along with its instances and public interface.
-module MLambda.Index (Index ((:.)), IndexI (..), Ix, inst) where
+module MLambda.Index
+  ( Index ((:.))
+  , consIndex
+  , concatIndex
+  , IndexI (..)
+  , Ix
+  , inst
+  ) where
 
 import MLambda.TypeLits
 
@@ -68,6 +75,17 @@ instance (KnownNat n, 1 <= n, Enum (Index (a:r)), Bounded (Index (a:r)))
   succ (h :. t) = h :. succ t
   pred (h :. t) | t == minBound = pred h :. maxBound
   pred (h :. t) = h :. pred t
+
+-- | Prepend a single-dimensional index to multi-dimensional one
+consIndex :: Index '[x] -> Index xs -> Index (x : xs)
+consIndex (I x) = \case
+  I y -> I x :. I y
+  I y :. xs -> I x :. I y :. xs
+
+-- | Concatenate two indices together
+concatIndex :: Index xs -> Index ys -> Index (xs ++ ys)
+concatIndex (I x) = consIndex (I x)
+concatIndex (I x :. xs) = consIndex (I x) . concatIndex xs
 
 -- | A helper type that holds instances for everything you can get by pattern matching on
 -- an @`Index`@ value. If you need to get instances for a head/tail of an @`Index`@,

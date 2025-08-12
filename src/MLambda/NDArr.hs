@@ -1,4 +1,5 @@
 {-# LANGUAGE RequiredTypeArguments #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- |
 -- Module      : MLambda.NDArr
@@ -25,6 +26,7 @@ module MLambda.NDArr
   , row
   , rows
   -- * Array composition
+  , Stacks
   , Stack
   , stack
   -- * Unsafe API
@@ -40,8 +42,11 @@ import Data.Foldable (forM_)
 import Data.List (intersperse)
 import Data.Vector.Storable qualified as Storable
 import Data.Vector.Storable.Mutable qualified as Mutable
-import Foreign.Storable (Storable)
+import Foreign.ForeignPtr (castForeignPtr)
+import Foreign.Ptr (Ptr, castPtr)
+import Foreign.Storable (Storable (..))
 import GHC.TypeError (ErrorMessage (..), TypeError)
+import Prelude hiding (concat, zipWith)
 
 -- | @NDArr [n1,...,nd] e@ is a type of arrays with dimensions @n1 x ... x nd@
 -- consisting of elements of type @e@.
@@ -68,7 +73,13 @@ instance (Ix (n:a:r), Show (NDArr (a:r) e), Storable e) =>
         (showString "[" .) . (. showString "]")
         . foldl' (.) id
         . intersperse (showString ",\n")
-        . map (shows . rows) . (:[])
+        . map (shows . toList . rows @'[n]) . (:[])
+
+instance (Ix d, Storable e) => Storable (NDArr d e) where
+  sizeOf _ = sizeOf (undefined :: e) * enumSize (Index d)
+  alignment _ = alignment (undefined :: e)
+  peek (castPtr -> (ptr :: Ptr e)) = fromIndexM (peekElemOff ptr . fromEnum)
+  poke (castPtr -> (ptr :: Ptr e)) = (`Storable.iforM_` pokeElemOff ptr) . runNDArr
 
 -- | Construct an array from a function @f@ that maps indices to elements.
 -- This function is strict and therefore @f@ can't refer to the result of
@@ -97,48 +108,82 @@ infixl 9 `at`
 
 -- | Extract a "row" from the array. If you're used to C or numpy arrays,
 -- this is similar to @a[i]@.
-row :: forall r e {n} {a} {b} .
-    ( Ix (n:r)
-    , r ~ (a:b)
-    , Storable e)
-    => Index '[n] -> NDArr (n:r) e -> NDArr r e
+row ::
+  forall d1 d2 e. (Ix d2, Ix (d1 ++ d2), Storable e) =>
+  Index d1 -> NDArr (d1 ++ d2) e -> NDArr d2 e
 row i =
-  case inst @(n:r) of
-    II :.= _ -> let i' = i :. (minBound :: Index r)
-                 in MkNDArr
-                  . Storable.slice (fromEnum i') (enumSize (Index r))
-                  . runNDArr
+  let i' = i `concatIndex` minBound @(Index d2)
+   in MkNDArr . Storable.slice (fromEnum i') (enumSize (Index d2)) . runNDArr
 
 -- | Extract all "rows" from the array as a list.
-rows :: forall r e {n} {a} {b} .
-     ( Ix (n:r)
-     , r ~ (a:b)
-     , Storable e)
-     => NDArr (n:r) e -> [NDArr r e]
-rows a = case inst @(n:r) of
-           II :.= _ -> [row i a | i <- [minBound..maxBound]]
+rows :: forall d1 d2 e. Ix d1 => NDArr (d1 ++ d2) e -> NDArr d1 (NDArr d2 e)
+rows =
+  MkNDArr
+  . (`Storable.unsafeFromForeignPtr0` enumSize (Index d1))
+  . castForeignPtr
+  . fst
+  . Storable.unsafeToForeignPtr0
+  . runNDArr
 
--- | @Stack i d1 d2@ are dimensions of an array which is a result of stacking
--- arrays of dimensions @d1@ and @d2@ along axis @i@.
-type family Stack i d1 d2 where
-  Stack 0 (n : d1) (m : d2) = n + m : Unify "Dimensions" d1 d2
-  Stack i (n : d1) (m : d2) = Unify "Sizes" n m : Stack (i - 1) d1 d2
-  Stack i d1 d2 = TypeError (
-    Text "Not enough dimensions to stack along axis "
-    :<>: ShowType i :<>: Text ":" :$$: ShowType d1 :$$: ShowType d2)
+toList :: Storable e => NDArr d e -> [e]
+toList = Storable.toList . runNDArr
+
+concat ::
+  forall d1 d2 e. Ix (d1 ++ d2) => NDArr d1 (NDArr d2 e) -> NDArr (d1 ++ d2) e
+concat =
+  MkNDArr
+  . (`Storable.unsafeFromForeignPtr0` enumSize (Index ((type (++)) d1 d2)))
+  . castForeignPtr
+  . fst
+  . Storable.unsafeToForeignPtr0
+  . runNDArr
+
+zipWith ::
+  (Storable a, Storable b, Storable c) =>
+  (a -> b -> c) -> NDArr d a -> NDArr d b -> NDArr d c
+zipWith f (MkNDArr xs) (MkNDArr ys) = MkNDArr (Storable.zipWith f xs ys)
+
+data StackWitness i d1 d2 dr where
+  SZ :: StackWitness PZ (n : d) (m : d) (n + m : d)
+  SS ::
+    (Ix '[n], Ix d1, Ix d2, Ix dr, Ix (n : dr)) =>
+    StackWitness i d1 d2 dr ->
+    StackWitness (PS i) (n : d1) (n : d2) (n : dr)
+
+-- | A type family which computes the resulting size of a stacked array.
+type family Stack msg i d e where
+  Stack _ PZ (n : d) (m : e) = n + m : Unify "Dimensions" d e
+  Stack msg (PS i) (n : d) (m : e) = Unify "Sizes" n m : Stack msg i d e
+  Stack msg _ _ _ = TypeError msg
+
+type StackError n d e =
+  Text "Not enough dimensions to stack along axis " :<>: ShowType n
+  :<>: Text ":" :$$: ShowType d :$$: ShowType e
+
+-- | A constraint which links together compatible dimensions and axis along
+-- which they will be stacked.
+class Stacks i d e r where
+  stacks :: StackWitness i d e r
+
+instance n + m ~ k => Stacks PZ (n : d) (m : d) (k : d) where
+  stacks = SZ
+
+instance
+  (Stacks i d e r, Ix '[n], Ix d, Ix e, Ix r, Ix (n : r)) =>
+  Stacks (PS i) (n : d) (n : e) (n : r) where
+  stacks = SS stacks
 
 -- | @stack i@ stacks arrays along the axis @i@. All other axes are required
 -- to be the same lengths.
 stack ::
-  forall n -> (KnownNat n, Ix d1, Ix d2, Ix (Stack n d1 d2), Storable e) =>
-  NDArr d1 e -> NDArr d2 e -> NDArr (Stack n d1 d2) e
-stack n = \(a :: NDArr d1 e) (b :: NDArr d2 e) ->
-  inst @(Stack n d1 d2) `seq` MkNDArr $ go (natVal n) inst inst a b
+  forall n ->
+  (err ~ StackError n d1 d2) =>
+  (Stacks (Peano n) d1 d2 (Stack err (Peano n) d1 d2), Storable e) =>
+  NDArr d1 e -> NDArr d2 e -> NDArr (Stack err (Peano n) d1 d2) e
+stack n = go (stacks @(Peano n))
   where
     go ::
-      Storable e => Natural -> IndexI d1 -> IndexI d2 ->
-      NDArr d1 e -> NDArr d2 e -> Storable.Vector e
-    go 0 _ _ = \a b -> Storable.concat [runNDArr a, runNDArr b]
-    go r (II :.= i) (II :.= j) = \a b ->
-      Storable.concat $ zipWith (go (r - 1) i j) (rows a) (rows b)
-    go _ _ _ = error "stack: impossible"
+      forall n d1 d2 dr e. Storable e => StackWitness n d1 d2 dr ->
+      NDArr d1 e -> NDArr d2 e -> NDArr dr e
+    go SZ (MkNDArr xs) (MkNDArr ys) = MkNDArr (xs <> ys)
+    go (SS w) xs ys = concat @'[_] $ zipWith (go w) (rows xs) (rows ys)
