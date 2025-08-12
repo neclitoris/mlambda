@@ -174,5 +174,5 @@ matE s = do
               $(TH.doE $ flip map (zip indices exps)
                 \(i, e) -> TH.noBindS [| Mutable.write mvec i $e |])
               vec <- Storable.unsafeFreeze mvec
-              pure $ MkNDArr @'[$tm, $tn] @Double vec
+              pure $ unsafeMkNDArr @'[$tm, $tn] @Double vec
          |]

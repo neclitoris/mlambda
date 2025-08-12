@@ -1,3 +1,4 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE RequiredTypeArguments #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -42,7 +43,6 @@ import Data.Foldable (forM_)
 import Data.List (intersperse)
 import Data.Vector.Storable qualified as Storable
 import Data.Vector.Storable.Mutable qualified as Mutable
-import Foreign.ForeignPtr (castForeignPtr)
 import Foreign.Ptr (Ptr, castPtr)
 import Foreign.Storable (Storable (..))
 import GHC.TypeError (ErrorMessage (..), TypeError)
@@ -109,34 +109,20 @@ infixl 9 `at`
 -- | Extract a "row" from the array. If you're used to C or numpy arrays,
 -- this is similar to @a[i]@.
 row ::
-  forall d1 d2 e. (Ix d2, Ix (d1 ++ d2), Storable e) =>
+  forall d1 d2 e. (Ix d1, Ix d2, Storable e) =>
   Index d1 -> NDArr (d1 ++ d2) e -> NDArr d2 e
-row i =
-  let i' = i `concatIndex` minBound @(Index d2)
-   in MkNDArr . Storable.slice (fromEnum i') (enumSize (Index d2)) . runNDArr
+row i a = rows a `at` i
 
--- | Extract all "rows" from the array as a list.
-rows :: forall d1 d2 e. Ix d1 => NDArr (d1 ++ d2) e -> NDArr d1 (NDArr d2 e)
-rows =
-  MkNDArr
-  . (`Storable.unsafeFromForeignPtr0` enumSize (Index d1))
-  . castForeignPtr
-  . fst
-  . Storable.unsafeToForeignPtr0
-  . runNDArr
+-- | Extract all "rows" from the array as an array.
+rows :: forall d1 d2 e. (Ix d2, Storable e) => NDArr (d1 ++ d2) e -> NDArr d1 (NDArr d2 e)
+rows = MkNDArr . Storable.unsafeCast . runNDArr
 
 toList :: Storable e => NDArr d e -> [e]
 toList = Storable.toList . runNDArr
 
 concat ::
-  forall d1 d2 e. Ix (d1 ++ d2) => NDArr d1 (NDArr d2 e) -> NDArr (d1 ++ d2) e
-concat =
-  MkNDArr
-  . (`Storable.unsafeFromForeignPtr0` enumSize (Index ((type (++)) d1 d2)))
-  . castForeignPtr
-  . fst
-  . Storable.unsafeToForeignPtr0
-  . runNDArr
+  forall d1 d2 e. (Ix d2, Storable e) => NDArr d1 (NDArr d2 e) -> NDArr (d1 ++ d2) e
+concat = MkNDArr . Storable.unsafeCast . runNDArr
 
 zipWith ::
   (Storable a, Storable b, Storable c) =>
