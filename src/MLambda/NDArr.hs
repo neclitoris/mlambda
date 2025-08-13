@@ -1,3 +1,4 @@
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE RequiredTypeArguments #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -27,7 +28,6 @@ module MLambda.NDArr
   , rows
   -- * Array composition
   , Stacks
-  , Stack
   , stack
   -- * Unsafe API
   , unsafeMkNDArr
@@ -128,18 +128,15 @@ zipWith ::
   (a -> b -> c) -> NDArr d a -> NDArr d b -> NDArr d c
 zipWith f (MkNDArr xs) (MkNDArr ys) = MkNDArr (Storable.zipWith f xs ys)
 
-data StackWitness i d1 d2 dr where
-  SZ :: StackWitness PZ (n : d) (m : d) (n + m : d)
+data StackWitness i p m s d1 d2 dr where
+  SZ :: StackWitness PZ '[] '(n, m, n + m) d (n : d) (m : d) (n + m : d)
   SS ::
-    (Ix '[n], Ix d1, Ix d2, Ix dr, Ix (n : dr)) =>
-    StackWitness i d1 d2 dr ->
-    StackWitness (PS i) (n : d1) (n : d2) (n : dr)
-
--- | A type family which computes the resulting size of a stacked array.
-type family Stack msg i d e where
-  Stack _ PZ (n : d) (m : e) = n + m : Unify "Dimensions" d e
-  Stack msg (PS i) (n : d) (m : e) = Unify "Sizes" n m : Stack msg i d e
-  Stack msg _ _ _ = TypeError msg
+    ( Ix '[n], Ix d1, Ix d2, Ix dr, Ix (n : dr)
+    , Ix (a : s), Ix (b : s),  Ix (c : s)
+    , p ++ (a : s) ~ d1, p ++ (b : s) ~ d2, p ++ (c : s) ~ dr
+    , a + b ~ c) =>
+    StackWitness i p '(a, b, c) s d1 d2 dr ->
+    StackWitness (PS i) (n:p) '(a, b, c) s (n : d1) (n : d2) (n : dr)
 
 type StackError n d e =
   Text "Not enough dimensions to stack along axis " :<>: ShowType n
@@ -147,28 +144,54 @@ type StackError n d e =
 
 -- | A constraint which links together compatible dimensions and axis along
 -- which they will be stacked.
-class Stacks i d e r where
-  stacks :: StackWitness i d e r
+class Stacks i p m s d e r | i d e r -> p m s where
+  stacks :: StackWitness i p m s d e r
 
-instance n + m ~ k => Stacks PZ (n : d) (m : d) (k : d) where
+instance n + m ~ k => Stacks PZ '[] '(n, m, k) d (n : d) (m : d) (k : d) where
   stacks = SZ
 
 instance
-  (Stacks i d e r, Ix '[n], Ix d, Ix e, Ix r, Ix (n : r)) =>
-  Stacks (PS i) (n : d) (n : e) (n : r) where
+  ( Stacks i p '(a, b, c) s d e r, Ix '[n], Ix d, Ix e, Ix r, Ix (n : r)
+  , Ix (a : s), Ix (b : s),  Ix (c : s)
+  , p ++ (a : s) ~ d, p ++ (b : s) ~ e, p ++ (c : s) ~ r
+  , a + b ~ c) =>
+  Stacks (PS i) (n : p) '(a, b, c) s (n : d) (n : e) (n : r) where
   stacks = SS stacks
+
+type family Prefix err i d where
+  Prefix _   PZ     (d:ds) = '[]
+  Prefix err (PS i) (d:ds) = d : Prefix err i ds
+  Prefix err _      _      = TypeError err
+
+type family Mid err i d where
+  Mid _   PZ     (d:ds) = d
+  Mid err (PS i) (d:ds) = Mid err i ds
+  Mid err _      _      = TypeError err
+
+type family Suffix err i d where
+  Suffix _   PZ     (d:ds) = ds
+  Suffix err (PS i) (d:ds) = Suffix err i ds
+  Suffix err _      _      = TypeError err
 
 -- | @stack i@ stacks arrays along the axis @i@. All other axes are required
 -- to be the same lengths.
 stack ::
   forall n ->
-  (err ~ StackError n d1 d2) =>
-  (Stacks (Peano n) d1 d2 (Stack err (Peano n) d1 d2), Storable e) =>
-  NDArr d1 e -> NDArr d2 e -> NDArr (Stack err (Peano n) d1 d2) e
+  ( err ~ StackError n d1 d2
+  , a ~ Mid err (Peano n) d1
+  , b ~ Mid err (Peano n) d2
+  , c ~ Mid err (Peano n) d1 + Mid err (Peano n) d2
+  , m ~ '(a, b, c)
+  , p ~ Prefix err (Peano n) d1
+  , s ~ Suffix err (Peano n) d1
+  , Stacks (Peano n) p m s d1 d2 (p ++ (c : s))
+  , Storable e) =>
+  NDArr d1 e -> NDArr d2 e -> NDArr (p ++ (c : s)) e
 stack n = go (stacks @(Peano n))
   where
     go ::
-      forall n d1 d2 dr e. Storable e => StackWitness n d1 d2 dr ->
+      forall n d1 d2 dr e p a b c s. Storable e => StackWitness n p '(a, b, c) s d1 d2 dr ->
       NDArr d1 e -> NDArr d2 e -> NDArr dr e
     go SZ (MkNDArr xs) (MkNDArr ys) = MkNDArr (xs <> ys)
-    go (SS w) xs ys = concat @'[_] $ zipWith (go w) (rows xs) (rows ys)
+    go (SS _) xs ys =
+      concat $ zipWith (go SZ) (rows @p @(a : s) xs) (rows @p @(b : s) ys)
