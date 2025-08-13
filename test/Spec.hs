@@ -1,8 +1,10 @@
 {-# LANGUAGE QuasiQuotes #-}
+
 import Test.Tasty
 import Test.Tasty.HUnit
 
 import MLambda.Matrix
+import MLambda.NDArr
 
 main :: IO ()
 main = defaultMain tests
