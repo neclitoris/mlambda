@@ -159,7 +159,7 @@ instance (n + m ~ k, Ix (n : d), Ix (m : d), Ix (k : d))
 
 instance Stacks i d e r => Stacks (PS i) (n : d) (n : e) (n : r) where
   stacks = case stacks @i @d @e @r of
-             (SZ m s) -> SS (Proxy @'[n]) m s
+             (SZ m s)            -> SS (Proxy @'[n]) m s
              (SS (Proxy @p) m s) -> SS (Proxy @(n:p)) m s
 
 -- | @stack i@ stacks arrays along the axis @i@. All other axes are required
