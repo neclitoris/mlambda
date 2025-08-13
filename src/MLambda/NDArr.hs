@@ -167,10 +167,9 @@ instance Stacks i d e r => Stacks (PS i) (n : d) (n : e) (n : r) where
 stack ::
   forall n ->
   ( err ~ StackError n d1 d2
-  , dr ~ Stack err (Peano n) d1 d2
-  , Stacks (Peano n) d1 d2 dr
+  , Stacks (Peano n) d1 d2 (Stack err (Peano n) d1 d2)
   , Storable e
-  ) => NDArr d1 e -> NDArr d2 e -> NDArr dr e
+  ) => NDArr d1 e -> NDArr d2 e -> NDArr (Stack err (Peano n) d1 d2) e
 stack n = go (stacks @(Peano n))
   where
     go ::
