@@ -28,6 +28,7 @@ module MLambda.NDArr
   , rows
   -- * Array composition
   , Stacks
+  , Stack
   , stack
   -- * Unsafe API
   , unsafeMkNDArr
@@ -160,21 +161,6 @@ instance Stacks i d e r => Stacks (PS i) (n : d) (n : e) (n : r) where
   stacks = case stacks @i @d @e @r of
              (SZ m s) -> SS (Proxy @'[n]) m s
              (SS (Proxy @p) m s) -> SS (Proxy @(n:p)) m s
-
-type family Prefix err i d where
-  Prefix _   PZ     (d:ds) = '[]
-  Prefix err (PS i) (d:ds) = d : Prefix err i ds
-  Prefix err _      _      = TypeError err
-
-type family Mid err i d where
-  Mid _   PZ     (d:ds) = d
-  Mid err (PS i) (d:ds) = Mid err i ds
-  Mid err _      _      = TypeError err
-
-type family Suffix err i d where
-  Suffix _   PZ     (d:ds) = ds
-  Suffix err (PS i) (d:ds) = Suffix err i ds
-  Suffix err _      _      = TypeError err
 
 -- | @stack i@ stacks arrays along the axis @i@. All other axes are required
 -- to be the same lengths.
