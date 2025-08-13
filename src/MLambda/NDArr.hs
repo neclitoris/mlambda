@@ -1,5 +1,5 @@
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE RequiredTypeArguments #-}
+{-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- |
@@ -40,6 +40,7 @@ import Control.DeepSeq (NFData)
 import Control.Monad.ST (runST)
 import Data.Foldable (forM_)
 import Data.List (intersperse)
+import Data.Proxy
 import Data.Vector.Storable qualified as Storable
 import Data.Vector.Storable.Mutable qualified as Mutable
 import Foreign.Ptr (Ptr, castPtr)
@@ -128,36 +129,37 @@ zipWith ::
   (a -> b -> c) -> NDArr d a -> NDArr d b -> NDArr d c
 zipWith f (MkNDArr xs) (MkNDArr ys) = MkNDArr (Storable.zipWith f xs ys)
 
-data StackWitness i p m s d1 d2 dr where
-  SZ :: StackWitness PZ '[] '(n, m, n + m) d (n : d) (m : d) (n + m : d)
-  SS ::
-    ( Ix '[n], Ix d1, Ix d2, Ix dr, Ix (n : dr)
-    , Ix (a : s), Ix (b : s),  Ix (c : s)
-    , p ++ (a : s) ~ d1, p ++ (b : s) ~ d2, p ++ (c : s) ~ dr
-    , a + b ~ c) =>
-    StackWitness i p '(a, b, c) s d1 d2 dr ->
-    StackWitness (PS i) (n:p) '(a, b, c) s (n : d1) (n : d2) (n : dr)
+data StackWitness i d1 d2 dr where
+  SZ :: (a + b ~ c, Ix (a : d), Ix (b : d), Ix (c : d))
+     => Proxy '(a, b, c) -> Proxy d
+     -> StackWitness PZ (a : d) (b : d) (c : d)
+  SS :: ( Ix (a : s), Ix (b : s), Ix (c : s), a + b ~ c)
+     => Proxy p -> Proxy '(a, b, c) -> Proxy s
+     -> StackWitness (PS i) (p ++ (a : s)) (p ++ (b : s)) (p ++ (c : s))
 
 type StackError n d e =
   Text "Not enough dimensions to stack along axis " :<>: ShowType n
   :<>: Text ":" :$$: ShowType d :$$: ShowType e
 
+-- | A type family which computes the resulting size of a stacked array.
+type family Stack msg i d e where
+  Stack _ PZ (n : d) (m : e) = n + m : Unify "Dimensions" d e
+  Stack msg (PS i) (n : d) (m : e) = Unify "Sizes" n m : Stack msg i d e
+  Stack msg _ _ _ = TypeError msg
+
 -- | A constraint which links together compatible dimensions and axis along
 -- which they will be stacked.
-class Stacks i prefix midpoints suffix dim1 dim2 dimr
-    | i dim1 dim2 dimr -> prefix midpoints suffix where
-  stacks :: StackWitness i prefix midpoints suffix dim1 dim2 dimr
+class Stacks i dim1 dim2 dimr where
+  stacks :: StackWitness i dim1 dim2 dimr
 
-instance n + m ~ k => Stacks PZ '[] '(n, m, k) d (n : d) (m : d) (k : d) where
-  stacks = SZ
+instance (n + m ~ k, Ix (n : d), Ix (m : d), Ix (k : d))
+    => Stacks PZ (n : d) (m : d) (k : d) where
+  stacks = SZ (Proxy @'(n, m, n + m)) (Proxy @d)
 
-instance
-  ( Stacks i p '(a, b, c) s d e r, Ix '[n], Ix d, Ix e, Ix r, Ix (n : r)
-  , Ix (a : s), Ix (b : s), Ix (c : s)
-  , p ++ (a : s) ~ d, p ++ (b : s) ~ e, p ++ (c : s) ~ r
-  , a + b ~ c) =>
-  Stacks (PS i) (n : p) '(a, b, c) s (n : d) (n : e) (n : r) where
-  stacks = SS stacks
+instance Stacks i d e r => Stacks (PS i) (n : d) (n : e) (n : r) where
+  stacks = case stacks @i @d @e @r of
+             (SZ m s) -> SS (Proxy @'[n]) m s
+             (SS (Proxy @p) m s) -> SS (Proxy @(n:p)) m s
 
 type family Prefix err i d where
   Prefix _   PZ     (d:ds) = '[]
@@ -178,18 +180,16 @@ type family Suffix err i d where
 -- to be the same lengths.
 stack ::
   forall n ->
-  ( p ~ Prefix (StackError n d1 d2) (Peano n) d1
-  , s ~ Suffix (StackError n d1 d2) (Peano n) d1
-  , d1 ~ p ++ (a : s)
-  , d2 ~ p ++ (b : s)
-  , Stacks (Peano n) p '(a, b, c) s d1 d2 (p ++ (c : s))
+  ( err ~ StackError n d1 d2
+  , dr ~ Stack err (Peano n) d1 d2
+  , Stacks (Peano n) d1 d2 dr
   , Storable e
-  ) => NDArr (p ++ (a : s)) e -> NDArr (p ++ (b : s)) e -> NDArr (p ++ (c : s)) e
+  ) => NDArr d1 e -> NDArr d2 e -> NDArr dr e
 stack n = go (stacks @(Peano n))
   where
     go ::
-      forall n d1 d2 dr e p a b c s. Storable e => StackWitness n p '(a, b, c) s d1 d2 dr ->
+      forall n d1 d2 dr e. Storable e => StackWitness n d1 d2 dr ->
       NDArr d1 e -> NDArr d2 e -> NDArr dr e
-    go SZ (MkNDArr xs) (MkNDArr ys) = MkNDArr (xs <> ys)
-    go (SS _) xs ys =
-      concat $ zipWith (go SZ) (rows @p @(a : s) xs) (rows @p @(b : s) ys)
+    go (SZ _ _) (MkNDArr xs) (MkNDArr ys) = MkNDArr (xs <> ys)
+    go (SS (Proxy @p) m@(Proxy @'(a, b, _)) s@(Proxy @s)) xs ys =
+      concat $ zipWith (go (SZ m s)) (rows @p @(a : s) xs) (rows @p @(b : s) ys)
