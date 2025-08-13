@@ -68,11 +68,11 @@ instance (Ix (n:a:r), Show (NDArr (a:r) e), Storable e) =>
   Show (NDArr (n:a:r) e) where
   showsPrec _ =
     case inst @(n:a:r) of
-      II :.= _ ->
-        (showString "[" .) . (. showString "]")
+      II :.= _ -> (showString "[" .) . (. showString "]")
         . foldl' (.) id
         . intersperse (showString ",\n")
-        . map (shows . toList . rows @'[n]) . (:[])
+        . map shows
+        . toList . rows @'[n]
 
 instance (Ix d, Storable e) => Storable (NDArr d e) where
   sizeOf _ = sizeOf (undefined :: e) * enumSize (Index d)
@@ -144,15 +144,16 @@ type StackError n d e =
 
 -- | A constraint which links together compatible dimensions and axis along
 -- which they will be stacked.
-class Stacks i p m s d e r | i d e r -> p m s where
-  stacks :: StackWitness i p m s d e r
+class Stacks i prefix midpoints suffix dim1 dim2 dimr
+    | i dim1 dim2 dimr -> prefix midpoints suffix where
+  stacks :: StackWitness i prefix midpoints suffix dim1 dim2 dimr
 
 instance n + m ~ k => Stacks PZ '[] '(n, m, k) d (n : d) (m : d) (k : d) where
   stacks = SZ
 
 instance
   ( Stacks i p '(a, b, c) s d e r, Ix '[n], Ix d, Ix e, Ix r, Ix (n : r)
-  , Ix (a : s), Ix (b : s),  Ix (c : s)
+  , Ix (a : s), Ix (b : s), Ix (c : s)
   , p ++ (a : s) ~ d, p ++ (b : s) ~ e, p ++ (c : s) ~ r
   , a + b ~ c) =>
   Stacks (PS i) (n : p) '(a, b, c) s (n : d) (n : e) (n : r) where
@@ -177,16 +178,13 @@ type family Suffix err i d where
 -- to be the same lengths.
 stack ::
   forall n ->
-  ( err ~ StackError n d1 d2
-  , a ~ Mid err (Peano n) d1
-  , b ~ Mid err (Peano n) d2
-  , c ~ Mid err (Peano n) d1 + Mid err (Peano n) d2
-  , m ~ '(a, b, c)
-  , p ~ Prefix err (Peano n) d1
-  , s ~ Suffix err (Peano n) d1
-  , Stacks (Peano n) p m s d1 d2 (p ++ (c : s))
-  , Storable e) =>
-  NDArr d1 e -> NDArr d2 e -> NDArr (p ++ (c : s)) e
+  ( p ~ Prefix (StackError n d1 d2) (Peano n) d1
+  , s ~ Suffix (StackError n d1 d2) (Peano n) d1
+  , d1 ~ p ++ (a : s)
+  , d2 ~ p ++ (b : s)
+  , Stacks (Peano n) p '(a, b, c) s d1 d2 (p ++ (c : s))
+  , Storable e
+  ) => NDArr (p ++ (a : s)) e -> NDArr (p ++ (b : s)) e -> NDArr (p ++ (c : s)) e
 stack n = go (stacks @(Peano n))
   where
     go ::
