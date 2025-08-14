@@ -25,8 +25,6 @@ module MLambda.Index
   , withIx
   ) where
 
-import Data.Proxy (Proxy (..))
-
 import MLambda.TypeLits
 
 import Data.Bool.Singletons
@@ -124,9 +122,11 @@ data IxInstance (dim :: [Natural]) where
   IxInstance :: Ix dim => IxInstance dim
 
 viewII :: IndexI dim -> IxInstance dim
-viewII (II :.= _) = IxInstance
+viewII (_ :.= _)  = IxInstance
 viewII EI         = IxInstance
 
+-- | A simpler pattern for @`IndexI`@ in case you don't need to recursive instances
+-- for suffixes.
 {-# COMPLETE IxI #-}
 pattern IxI :: () => Ix dim => IndexI dim
 pattern IxI <- (viewII -> IxInstance) where
@@ -148,18 +148,18 @@ instance Ix '[] where
 instance (KnownNat n, 1 <= n, Ix ds) => Ix (n:ds) where
   inst = Proxy :.= inst
 
--- | Convert @`Sing`@ of a
+-- | Convert @`Sing`@ of a dimension list to a witness for @`Ix`@ instances
+-- of that index.
 singToIndexI :: forall dim . Sing dim -> Maybe (IndexI dim)
-singToIndexI (SCons sn@SNat SNil) =
-  case sing @1 %<=? sn of
-    STrue  -> Just II
-    SFalse -> Nothing
-singToIndexI (SCons sn@SNat sr@SCons{}) =
+singToIndexI SNil = Just EI
+singToIndexI (SCons sn@SNat sr) =
   case (sing @1 %<=? sn, singToIndexI sr) of
-    (STrue, Just r@IxI) -> Just $ II :.= r
+    (STrue, Just r@IxI) -> Just $ Proxy :.= r
     _                   -> Nothing
-singToIndexI _ = Nothing
 
+-- | Simple interface for lifting runtime dimensions into type level.
+-- Provides the given continuation with the type of said dimensions and their
+-- @`Ix`@ instance.
 withIx :: Demote [Natural] -> (forall dim . Ix dim => Proxy dim -> r) -> Maybe r
 withIx d f = withSomeSing d \(singToIndexI -> r) ->
   flip fmap r \case (IxI :: IndexI dim) -> f $ Proxy @dim

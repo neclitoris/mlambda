@@ -159,7 +159,7 @@ data StackWitness i d1 d2 dr where
     ( KnownNat k, KnownNat l, KnownNat (k + l), Ix t
     , 1 <= k, 1 <= l, 1 <= k + l
     ) => Proxy '(s, k, l, t) ->
-    StackWitness (Length s) (s ++ (k : t)) (s ++ (l : t)) (s ++ ((k + l) : t))
+    StackWitness (PLength s) (s ++ (k : t)) (s ++ (l : t)) (s ++ ((k + l) : t))
 
 instance
   ( KnownNat n, KnownNat m, KnownNat k, Ix d

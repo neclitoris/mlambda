@@ -19,7 +19,7 @@ module MLambda.TypeLits
   , Unify
   , type (++)
   , PNat (..)
-  , Length
+  , PLength
   , Peano
   , RNat (..)
   , RPNat (..)
@@ -50,9 +50,9 @@ type family Unify n a b where
 data PNat = PZ | PS PNat
 
 -- | Compute length of a type-level list as a Peano natural.
-type family Length xs where
-  Length '[] = PZ
-  Length (_:xs) = PS (Length xs)
+type family PLength xs where
+  PLength '[] = PZ
+  PLength (_:xs) = PS (PLength xs)
 
 -- | Compute Peano representation from type-level natural.
 type family Peano n where
