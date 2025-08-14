@@ -119,6 +119,8 @@ viewII :: IndexI dim -> IxInstance dim
 viewII (II :.= _) = IxInstance
 viewII II         = IxInstance
 
+-- | A simpler pattern for @`IndexI`@ in case you don't need to recursive instances
+-- for suffixes.
 {-# COMPLETE IxI #-}
 pattern IxI :: () => Ix dim => IndexI dim
 pattern IxI <- (viewII -> IxInstance) where
@@ -140,7 +142,8 @@ instance (KnownNat n, 1 <= n) => Ix '[n] where
 instance (KnownNat n, 1 <= n, Ix (d:ds)) => Ix (n:d:ds) where
   inst = II :.= inst
 
--- | Convert @`Sing`@ of a
+-- | Convert @`Sing`@ of a dimension list to a witness for @`Ix`@ instances
+-- of that index.
 singToIndexI :: forall dim . Sing dim -> Maybe (IndexI dim)
 singToIndexI (SCons sn@SNat SNil) =
   case sing @1 %<=? sn of
@@ -152,6 +155,9 @@ singToIndexI (SCons sn@SNat sr@SCons{}) =
     _                   -> Nothing
 singToIndexI _ = Nothing
 
+-- | Simple interface for lifting runtime dimensions into type level.
+-- Provides the given continuation with the type of said dimensions and their
+-- @`Ix`@ instance.
 withIx :: Demote [Natural] -> (forall dim . Ix dim => Proxy dim -> r) -> Maybe r
 withIx d f = withSomeSing d \(singToIndexI -> r) ->
   flip fmap r \case (IxI :: IndexI dim) -> f $ Proxy @dim
