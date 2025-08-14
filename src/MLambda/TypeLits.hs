@@ -28,6 +28,7 @@ module MLambda.TypeLits
   , rpnat
   ) where
 
+import Data.List.Singletons
 import Data.Proxy (Proxy (Proxy))
 import GHC.TypeError (ErrorMessage (..), TypeError)
 import GHC.TypeNats hiding (natVal)
@@ -44,11 +45,6 @@ enumSize t = fromEnum (maxBound @t) - fromEnum (minBound @t) + 1
 type family Unify n a b where
   Unify _ a a = a
   Unify n a b = TypeError (Text n :<>: Text " are not equal:" :$$: ShowType a :$$: ShowType b)
-
--- | Type-level list concatenation.
-type family xs ++ ys where
-  '[] ++ ys = ys
-  (x:xs) ++ ys = x : xs ++ ys
 
 -- | Peano naturals.
 data PNat = PZ | PS PNat

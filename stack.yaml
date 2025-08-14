@@ -34,10 +34,8 @@ packages:
 # These entries can reference officially published versions as well as
 # forks / in-progress versions pinned to a git hash. For example:
 #
-# extra-deps:
-# - acme-missiles-0.3
-# - git: https://github.com/commercialhaskell/stack.git
-#   commit: e7b331f14bcffb8367cd58fbfc8b40ec7642100a
+extra-deps:
+- falsify-0.2.0@sha256:af5c4142095d05775236c8e18e827d540ed22f57b3b74b2268b32040b514ac88,5451
 #
 # extra-deps: []
 
@@ -64,3 +62,6 @@ packages:
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor
+allow-newer-deps:
+- falsify
+allow-newer: true
