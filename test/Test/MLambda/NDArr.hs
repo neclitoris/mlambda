@@ -1,11 +1,11 @@
+{-# LANGUAGE TypeAbstractions #-}
 module Test.MLambda.NDArr (testNDArr) where
 
 import MLambda.Index
 import MLambda.NDArr
 
-import Control.Monad
+import Data.Maybe
 import Data.Proxy
-import Data.Singletons
 import Numeric.Natural
 import Test.Falsify.Generator qualified as Gen
 import Test.Falsify.Predicate ((.$))
@@ -29,17 +29,16 @@ instance Enum (Index dim) => Gen.Function (Index dim) where
 propFromIndex :: Property ()
 propFromIndex = do
   dim <- gen genDim
-  let Just p = withIx dim \(Proxy @dim) -> do
-                 Fn f <- gen $ Gen.fun genInt
-                 let is = [minBound..maxBound] :: [Index dim]
-                     ndarr = fromIndex f
-                     values = map f is
-                     ndarrValues = map (ndarr `at`) is
-                     pred = Pred.relatedBy
-                       ("==", (or .) . zipWith (==))
-                 assert $ pred .$ ("fromIndex f `at` i", ndarrValues)
-                               .$ ("f i", values)
-  p
+  let p = withIx dim \(Proxy @dim) -> do
+            Fn f <- gen $ Gen.fun genInt
+            let is = [minBound..maxBound] :: [Index dim]
+                ndarr = fromIndex f
+                values = map f is
+                ndarrValues = map (ndarr `at`) is
+            assert $ Pred.relatedBy ("==", (or .) . zipWith (==))
+                  .$ ("fromIndex f `at` i", ndarrValues)
+                  .$ ("f i", values)
+  fromMaybe (error "propFromIndex: impossible") p
 
 testFromIndex :: TestTree
 testFromIndex = testProperty "fromIndex" propFromIndex
