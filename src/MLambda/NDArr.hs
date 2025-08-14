@@ -131,10 +131,10 @@ zipWith ::
 zipWith f (MkNDArr xs) (MkNDArr ys) = MkNDArr (Storable.zipWith f xs ys)
 
 data StackWitness i d1 d2 dr where
-  SZ :: (a + b ~ c, Ix (a : d), Ix (b : d), Ix (c : d))
-     => Proxy '(a, b, c) -> Proxy d
-     -> StackWitness PZ (a : d) (b : d) (c : d)
-  SS :: ( Ix (a : s), Ix (b : s), Ix (c : s), a + b ~ c)
+  SZ :: (a + b ~ c, Ix (a : s), Ix (b : s), Ix (c : s))
+     => Proxy '(a, b, c) -> Proxy s
+     -> StackWitness PZ (a : s) (b : s) (c : s)
+  SS :: (a + b ~ c, Ix (a : s), Ix (b : s), Ix (c : s))
      => Proxy p -> Proxy '(a, b, c) -> Proxy s
      -> StackWitness (PS i) (p ++ (a : s)) (p ++ (b : s)) (p ++ (c : s))
 
