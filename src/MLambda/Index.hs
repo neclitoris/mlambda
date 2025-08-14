@@ -1,3 +1,6 @@
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TypeAbstractions #-}
+{-# LANGUAGE ViewPatterns #-}
 -- |
 -- Module      : MLambda.Index
 -- Description : Type of multidimensional array indices.
@@ -15,10 +18,19 @@ module MLambda.Index
   , concatIndex
   , IndexI (..)
   , Ix
+  , pattern IxI
   , inst
+  -- * Lifting of runtime dimesions into indices
+  , singToIndexI
+  , withIx
   ) where
 
 import MLambda.TypeLits
+
+import Data.Bool.Singletons
+import Data.List.Singletons
+import Data.Singletons
+import GHC.TypeLits.Singletons hiding (natVal)
 
 -- | @Index dim@ is the type of indices of multidimensional arrays of dimensions @dim@.
 -- Instances are provided for convenient use:
@@ -100,6 +112,20 @@ data IndexI (dim :: [Natural]) where
   (:.=) :: Ix (d : ds) => IndexI '[n] -> IndexI (d : ds) -> IndexI (n : d : ds)
   II :: (KnownNat n, 1 <= n) => IndexI '[n]
 
+data IxInstance (dim :: [Natural]) where
+  IxInstance :: Ix dim => IxInstance dim
+
+viewII :: IndexI dim -> IxInstance dim
+viewII (II :.= _) = IxInstance
+viewII II = IxInstance
+
+{-# COMPLETE IxI #-}
+pattern IxI :: () => Ix dim => IndexI dim
+pattern IxI <- (viewII -> IxInstance) where
+  IxI = inst
+
+deriving instance Show (IndexI dim)
+
 infixr 5 :.=
 
 -- | A class used both as a shorthand for useful @`Index`@ instances and a way to obtain
@@ -113,3 +139,21 @@ instance (KnownNat n, 1 <= n) => Ix '[n] where
 
 instance (KnownNat n, 1 <= n, Ix (d:ds)) => Ix (n:d:ds) where
   inst = II :.= inst
+
+-- | Convert @`Sing`@ of a
+singToIndexI :: forall dim . Sing dim -> Maybe (IndexI dim)
+singToIndexI (SCons sn@SNat SNil) =
+  case sing @1 %<=? sn of
+    STrue  -> Just II
+    SFalse -> Nothing
+singToIndexI (SCons sn@SNat sr@SCons{}) =
+  case (sing @1 %<=? sn, singToIndexI sr) of
+    (STrue, Just r@IxI) -> Just $ II :.= r
+    _                   -> Nothing
+singToIndexI _ = Nothing
+
+withIx :: Demote [Natural] -> (forall dim . Ix dim => Proxy dim -> r) -> Maybe r
+withIx d f = withSomeSing d \(singToIndexI -> r) ->
+  flip fmap r \case (IxI :: IndexI dim) -> f $ Proxy @dim
+
+
