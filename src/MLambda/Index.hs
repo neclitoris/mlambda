@@ -125,7 +125,7 @@ data IxInstance (dim :: [Natural]) where
 
 viewII :: IndexI dim -> IxInstance dim
 viewII (II :.= _) = IxInstance
-viewII EI = IxInstance
+viewII EI         = IxInstance
 
 {-# COMPLETE IxI #-}
 pattern IxI :: () => Ix dim => IndexI dim

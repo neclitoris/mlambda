@@ -8,17 +8,17 @@ import Data.Proxy
 import Data.Singletons
 import Numeric.Natural
 import Test.Falsify.Generator qualified as Gen
-import Test.Falsify.Predicate qualified as Pred
 import Test.Falsify.Predicate ((.$))
+import Test.Falsify.Predicate qualified as Pred
 import Test.Falsify.Range qualified as Range
-import Test.Tasty.Falsify
 import Test.Tasty
+import Test.Tasty.Falsify
 
 genSz :: Gen Natural
 genSz = fromIntegral <$> Gen.int (Range.between (1, 5))
 
 genDim :: Gen [Natural]
-genDim = Gen.list (Range.between (1, 5)) $ genSz
+genDim = Gen.list (Range.between (1, 5)) genSz
 
 genInt :: Gen Int
 genInt = Gen.inRange $ Range.between (-1000, 1000)
@@ -36,7 +36,7 @@ propFromIndex = do
                      values = map f is
                      ndarrValues = map (ndarr `at`) is
                      pred = Pred.relatedBy
-                       ("==", (foldl1 (||) .) . zipWith (==))
+                       ("==", (or .) . zipWith (==))
                  assert $ pred .$ ("fromIndex f `at` i", ndarrValues)
                                .$ ("f i", values)
   p
