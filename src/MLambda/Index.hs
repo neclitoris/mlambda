@@ -12,7 +12,7 @@
 -- This module contains definition of 'Index' type of multidimensional array
 -- indices along with its instances and public interface.
 module MLambda.Index
-  ( Index ((:.))
+  ( Index (E, (:.))
   , consIndex
   , concatIndex
   , IndexI (..)
