@@ -1,3 +1,5 @@
+{-# LANGUAGE ViewPatterns #-}
+
 -- |
 -- Module      : MLambda.Index
 -- Description : Type of multidimensional array indices.
@@ -10,13 +12,15 @@
 -- This module contains definition of 'Index' type of multidimensional array
 -- indices along with its instances and public interface.
 module MLambda.Index
-  ( Index ((:.))
+  ( Index (E, (:.))
   , consIndex
   , concatIndex
   , IndexI (..)
   , Ix
   , inst
   ) where
+
+import Data.Proxy (Proxy (..))
 
 import MLambda.TypeLits
 
@@ -32,8 +36,9 @@ import MLambda.TypeLits
 -- - @`Enum`@ provides means to iterate through indices in the same
 -- order their respective elements are laid out in memory.
 data Index (dim :: [Natural]) where
-  (:.) :: Index '[n] -> Index (d : ds) -> Index (n : d : ds)
+  E :: Index '[]
   I :: Int -> Index '[n]
+  (:.) :: Index '[n] -> Index (d : ds) -> Index (n : d : ds)
 
 deriving instance Eq (Index dim)
 deriving instance Ord (Index dim)
@@ -49,42 +54,46 @@ instance (KnownNat n, 1 <= n) => Num (Index '[n]) where
   (I a) + (I b) = I $ (a + b) `mod` natVal n
   (I a) * (I b) = I $ (a * b) `mod` natVal n
 
-instance (KnownNat n, 1 <= n) => Bounded (Index '[n]) where
-  minBound = I 0
-  maxBound = I $ natVal n - 1
+instance Bounded (Index '[]) where
+  minBound = E
+  maxBound = E
 
-instance (KnownNat n, 1 <= n, Bounded (Index (a:r))) => Bounded (Index (n:a:r)) where
-  minBound = minBound :. minBound
-  maxBound = maxBound :. maxBound
+instance (KnownNat n, 1 <= n, Bounded (Index d)) => Bounded (Index (n:d)) where
+  minBound = 0 `consIndex` minBound
+  maxBound = (-1) `consIndex` maxBound
 
-instance (KnownNat n, 1 <= n) => Enum (Index '[n]) where
-  fromEnum (I m) = m
-  toEnum = I . (`mod` natVal n)
-  succ (I m) | m == natVal n - 1 = error "Undefined succ"
-  succ (I m) = I (m + 1)
-  pred (I 0) = error "Undefined pred"
-  pred (I m) = I (m - 1)
+instance Enum (Index '[]) where
+  toEnum = const E
+  fromEnum = const 0
 
-instance (KnownNat n, 1 <= n, Enum (Index (a:r)), Bounded (Index (a:r)))
-  => Enum (Index (n:a:r)) where
-  fromEnum (I n :. t) = enumSize (Index (a:r)) * n + fromEnum t
-  toEnum m = I q :. toEnum t
-    where
-      (q, t) = m `quotRem` enumSize (Index (a:r))
-  succ (h :. t) | t == maxBound = succ h :. minBound
-  succ (h :. t) = h :. succ t
-  pred (h :. t) | t == minBound = pred h :. maxBound
-  pred (h :. t) = h :. pred t
+instance (KnownNat n, 1 <= n, Enum (Index d), Bounded (Index d)) =>
+  Enum (Index (n:d)) where
+  toEnum ((`quotRem` enumSize (Index d)) -> (q, r)) = I q `consIndex` toEnum r
+  fromEnum = \case
+    I i -> i
+    I q :. r -> q * enumSize (Index d) + fromEnum r
+  succ = \case
+    h@(I i) | h == maxBound -> error "Undefined succ"
+            | otherwise -> I (succ i)
+    h :. t | t == maxBound -> succ h :. minBound
+           | otherwise -> h :. succ t
+  pred = \case
+    h@(I i) | h == minBound -> error "Undefined pred"
+            | otherwise -> I (pred i)
+    h :. t | t == minBound -> pred h :. maxBound
+           | otherwise -> h :. pred t
 
 -- | Prepend a single-dimensional index to multi-dimensional one
 consIndex :: Index '[x] -> Index xs -> Index (x : xs)
 consIndex (I x) = \case
+  E -> I x
   I y -> I x :. I y
   I y :. xs -> I x :. I y :. xs
 
 -- | Concatenate two indices together
 concatIndex :: Index xs -> Index ys -> Index (xs ++ ys)
 concatIndex = \case
+  E -> id
   I x -> consIndex (I x)
   I x :. xs -> consIndex (I x) . concatIndex xs
 
@@ -97,8 +106,9 @@ concatIndex = \case
 -- >                _ :.= _ -> f j  -- @f j@ can be called here because we have @Ix ds@ now
 -- > f i        = ...
 data IndexI (dim :: [Natural]) where
-  (:.=) :: Ix (d : ds) => IndexI '[n] -> IndexI (d : ds) -> IndexI (n : d : ds)
-  II :: (KnownNat n, 1 <= n) => IndexI '[n]
+  EI :: IndexI '[]
+  (:.=) ::
+    (KnownNat n, 1 <= n, Ix ds) => Proxy n -> IndexI ds -> IndexI (n : ds)
 
 infixr 5 :.=
 
@@ -108,8 +118,8 @@ class (Bounded (Index dim), Enum (Index dim)) => Ix dim where
   -- | Returns a term-level witness of @Ix@.
   inst :: IndexI dim
 
-instance (KnownNat n, 1 <= n) => Ix '[n] where
-  inst = II
+instance Ix '[] where
+  inst = EI
 
-instance (KnownNat n, 1 <= n, Ix (d:ds)) => Ix (n:d:ds) where
-  inst = II :.= inst
+instance (KnownNat n, 1 <= n, Ix ds) => Ix (n:ds) where
+  inst = Proxy :.= inst
