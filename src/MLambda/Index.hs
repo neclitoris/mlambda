@@ -90,7 +90,7 @@ instance Enum (Index '[]) where
 
 instance (KnownNat n, 1 <= n, Enum (Index d), Bounded (Index d)) =>
   Enum (Index (n:d)) where
-  toEnum ((`quotRem` enumSize (Index d)) -> (q, r)) = I q :. toEnum r
+  toEnum ((`quotRem` enumSize (Index d)) -> (q, r)) = I (q `mod` natVal n) :. toEnum r
   fromEnum (I q :. r) = q * enumSize (Index d) + fromEnum r
   succ (h :. t) | t == maxBound = succ h :. minBound
                 | otherwise     = h :. succ t

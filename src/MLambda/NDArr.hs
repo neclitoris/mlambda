@@ -63,18 +63,18 @@ newtype NDArr (dim :: [Natural]) e = MkNDArr {
 unsafeMkNDArr :: forall dim e. Storable.Vector e -> NDArr dim e
 unsafeMkNDArr = MkNDArr
 
-instance (Show e, Storable e) => Show (NDArr '[n] e) where
-  show = show . runNDArr
-
-instance (Ix (n:a:r), Show (NDArr (a:r) e), Storable e) =>
-  Show (NDArr (n:a:r) e) where
+instance (Ix dim, Show e, Storable e) => Show (NDArr dim e) where
   showsPrec _ =
-    case inst @(n:a:r) of
-      _ :.= _ -> (showString "[" .) . (. showString "]")
-        . foldl' (.) id
-        . intersperse (showString ",\n")
-        . map shows
-        . toList . rows @'[n]
+    case inst @dim of
+      _ :.= _ -> go
+      EI      -> shows . (Storable.! 0) . runNDArr
+    where
+      go :: forall n r e' . (Ix r, Show (NDArr r e'), Storable e') => NDArr (n:r) e' -> ShowS
+      go = (showString "[" .) . (. showString "]")
+          . foldl' (.) id
+          . intersperse (showString ",\n")
+          . map shows
+          . toList . rows @'[n]
 
 instance (Ix d, Storable e) => Storable (NDArr d e) where
   sizeOf _ = sizeOf (undefined :: e) * enumSize (Index d)
