@@ -22,8 +22,8 @@ module MLambda.Index
   , pattern IxI
   -- * Lifting of runtime dimesions into indices
   , singToIndexI
-  -- * Index operations
   , withIx
+  -- * Index operations
   , concatIndex
   ) where
 

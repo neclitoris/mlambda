@@ -41,6 +41,7 @@ import Control.DeepSeq (NFData)
 import Control.Monad.ST (runST)
 import Data.Foldable (forM_)
 import Data.List (intersperse)
+import Data.List.Singletons
 import Data.Proxy
 import Data.Vector.Storable qualified as Storable
 import Data.Vector.Storable.Mutable qualified as Mutable

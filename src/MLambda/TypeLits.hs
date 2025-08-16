@@ -17,7 +17,6 @@ module MLambda.TypeLits
   , natVal
   , enumSize
   , Unify
-  , type (++)
   , PNat (..)
   , PLength
   , Peano
@@ -28,7 +27,6 @@ module MLambda.TypeLits
   , rpnat
   ) where
 
-import Data.List.Singletons
 import Data.Proxy (Proxy (Proxy))
 import GHC.TypeError (ErrorMessage (..), TypeError)
 import GHC.TypeNats hiding (natVal)
