@@ -13,16 +13,18 @@
 -- This module contains definition of 'Index' type of multidimensional array
 -- indices along with its instances and public interface.
 module MLambda.Index
-  ( Index (E, (:.))
-  , consIndex
-  , concatIndex
+  ( -- * Index type
+    Index (E)
+  , pattern (:.)
+  -- * Index instances
+  , Ix(..)
   , IndexI (..)
-  , Ix
   , pattern IxI
-  , inst
   -- * Lifting of runtime dimesions into indices
   , singToIndexI
+  -- * Index operations
   , withIx
+  , concatIndex
   ) where
 
 import MLambda.TypeLits
@@ -45,8 +47,20 @@ import GHC.TypeLits.Singletons hiding (natVal)
 -- order their respective elements are laid out in memory.
 data Index (dim :: [Natural]) where
   E :: Index '[]
-  I :: Int -> Index '[n]
-  (:.) :: Index '[n] -> Index (d : ds) -> Index (n : d : ds)
+  ICons :: Int -> Index ds -> Index (d : ds)
+
+{-# COMPLETE I #-}
+pattern I :: Int -> Index '[d]
+pattern I m = ICons m E
+
+viewI :: Index (d:ds) -> (Index '[d], Index ds)
+viewI (ICons x xs) = (I x, xs)
+
+{-# COMPLETE (:.) #-}
+-- | Prepend a single-dimensional index to multi-dimensional one
+pattern (:.) :: Index '[d] -> Index ds -> Index (d:ds)
+pattern x :. xs <- (viewI -> (x, xs))
+  where (ICons x E) :. xs = ICons x xs
 
 deriving instance Eq (Index dim)
 deriving instance Ord (Index dim)
@@ -67,8 +81,8 @@ instance Bounded (Index '[]) where
   maxBound = E
 
 instance (KnownNat n, 1 <= n, Bounded (Index d)) => Bounded (Index (n:d)) where
-  minBound = 0 `consIndex` minBound
-  maxBound = (-1) `consIndex` maxBound
+  minBound = 0    :. minBound
+  maxBound = (-1) :. maxBound
 
 instance Enum (Index '[]) where
   toEnum = const E
@@ -76,34 +90,17 @@ instance Enum (Index '[]) where
 
 instance (KnownNat n, 1 <= n, Enum (Index d), Bounded (Index d)) =>
   Enum (Index (n:d)) where
-  toEnum ((`quotRem` enumSize (Index d)) -> (q, r)) = I q `consIndex` toEnum r
-  fromEnum = \case
-    I i -> i
-    I q :. r -> q * enumSize (Index d) + fromEnum r
-  succ = \case
-    h@(I i) | h == maxBound -> error "Undefined succ"
-            | otherwise -> I (succ i)
-    h :. t | t == maxBound -> succ h :. minBound
-           | otherwise -> h :. succ t
-  pred = \case
-    h@(I i) | h == minBound -> error "Undefined pred"
-            | otherwise -> I (pred i)
-    h :. t | t == minBound -> pred h :. maxBound
-           | otherwise -> h :. pred t
-
--- | Prepend a single-dimensional index to multi-dimensional one
-consIndex :: Index '[x] -> Index xs -> Index (x : xs)
-consIndex (I x) = \case
-  E -> I x
-  I y -> I x :. I y
-  I y :. xs -> I x :. I y :. xs
+  toEnum ((`quotRem` enumSize (Index d)) -> (q, r)) = I q :. toEnum r
+  fromEnum (I q :. r) = q * enumSize (Index d) + fromEnum r
+  succ (h :. t) | t == maxBound = succ h :. minBound
+                | otherwise     = h :. succ t
+  pred (h :. t) | t == minBound = pred h :. maxBound
+                | otherwise     = h :. pred t
 
 -- | Concatenate two indices together
-concatIndex :: Index xs -> Index ys -> Index (xs ++ ys)
-concatIndex = \case
-  E -> id
-  I x -> consIndex (I x)
-  I x :. xs -> consIndex (I x) . concatIndex xs
+concatIndex :: forall xs ys . Index xs -> Index ys -> Index (xs ++ ys)
+concatIndex E            = id
+concatIndex (ICons x xs) = ICons x . concatIndex xs
 
 -- | A helper type that holds instances for everything you can get by pattern matching on
 -- an @`Index`@ value. If you need to get instances for a head/tail of an @`Index`@,
@@ -125,7 +122,7 @@ viewII :: IndexI dim -> IxInstance dim
 viewII (_ :.= _)  = IxInstance
 viewII EI         = IxInstance
 
--- | A simpler pattern for @`IndexI`@ in case you don't need to recursive instances
+-- | A simpler pattern for @`IndexI`@ in case you don't need instances
 -- for suffixes.
 {-# COMPLETE IxI #-}
 pattern IxI :: () => Ix dim => IndexI dim
