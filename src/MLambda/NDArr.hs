@@ -27,8 +27,8 @@ module MLambda.NDArr
   , row
   , rows
   -- * Array composition
-  , Stacks
   , Stack
+  , Stacks
   , stack
   -- * Unsafe API
   , unsafeMkNDArr
@@ -70,7 +70,7 @@ instance (Ix (n:a:r), Show (NDArr (a:r) e), Storable e) =>
   Show (NDArr (n:a:r) e) where
   showsPrec _ =
     case inst @(n:a:r) of
-      II :.= _ -> (showString "[" .) . (. showString "]")
+      _ :.= _ -> (showString "[" .) . (. showString "]")
         . foldl' (.) id
         . intersperse (showString ",\n")
         . map shows
@@ -115,14 +115,17 @@ row ::
 row i a = rows a `at` i
 
 -- | Extract all "rows" from the array as an array.
-rows :: forall d1 d2 e. (Ix d2, Storable e) => NDArr (d1 ++ d2) e -> NDArr d1 (NDArr d2 e)
+rows ::
+  forall d1 d2 e. (Ix d2, Storable e) =>
+  NDArr (d1 ++ d2) e -> NDArr d1 (NDArr d2 e)
 rows = MkNDArr . Storable.unsafeCast . runNDArr
 
 toList :: Storable e => NDArr d e -> [e]
 toList = Storable.toList . runNDArr
 
 concat ::
-  forall d1 d2 e. (Ix d2, Storable e) => NDArr d1 (NDArr d2 e) -> NDArr (d1 ++ d2) e
+  forall d1 d2 e. (Ix d2, Storable e) =>
+  NDArr d1 (NDArr d2 e) -> NDArr (d1 ++ d2) e
 concat = MkNDArr . Storable.unsafeCast . runNDArr
 
 zipWith ::
@@ -130,51 +133,49 @@ zipWith ::
   (a -> b -> c) -> NDArr d a -> NDArr d b -> NDArr d c
 zipWith f (MkNDArr xs) (MkNDArr ys) = MkNDArr (Storable.zipWith f xs ys)
 
-data StackWitness i d1 d2 dr where
-  SZ :: (a + b ~ c, Ix (a : d), Ix (b : d), Ix (c : d))
-     => Proxy '(a, b, c) -> Proxy d
-     -> StackWitness PZ (a : d) (b : d) (c : d)
-  SS :: ( Ix (a : s), Ix (b : s), Ix (c : s), a + b ~ c)
-     => Proxy p -> Proxy '(a, b, c) -> Proxy s
-     -> StackWitness (PS i) (p ++ (a : s)) (p ++ (b : s)) (p ++ (c : s))
+vstack ::
+  Storable e => NDArr (k : d) e -> NDArr (l : d) e -> NDArr ((k + l) : d) e
+vstack (MkNDArr xs) (MkNDArr ys) = MkNDArr (xs <> ys)
+
+-- | A type family which computes the resulting size of a stacked array.
+type Stack n d e = StackImpl (StackError n d e) (Peano n) d e
 
 type StackError n d e =
   Text "Not enough dimensions to stack along axis " :<>: ShowType n
   :<>: Text ":" :$$: ShowType d :$$: ShowType e
 
--- | A type family which computes the resulting size of a stacked array.
-type family Stack msg i d e where
-  Stack _ PZ (n : d) (m : e) = n + m : Unify "Dimensions" d e
-  Stack msg (PS i) (n : d) (m : e) = Unify "Sizes" n m : Stack msg i d e
-  Stack msg _ _ _ = TypeError msg
+type family StackImpl msg i d e where
+  StackImpl _ PZ (n : d) (m : e) = n + m : Unify "Dimensions" d e
+  StackImpl msg (PS i) (n : d) (m : e) = Unify "Sizes" n m : StackImpl msg i d e
+  StackImpl msg _ _ _ = TypeError msg
 
 -- | A constraint which links together compatible dimensions and axis along
 -- which they will be stacked.
 class Stacks i dim1 dim2 dimr where
   stacks :: StackWitness i dim1 dim2 dimr
 
-instance (n + m ~ k, Ix (n : d), Ix (m : d), Ix (k : d))
-    => Stacks PZ (n : d) (m : d) (k : d) where
-  stacks = SZ (Proxy @'(n, m, n + m)) (Proxy @d)
+data StackWitness i d1 d2 dr where
+  SW ::
+    ( KnownNat k, KnownNat l, KnownNat (k + l), Ix t
+    , 1 <= k, 1 <= l, 1 <= k + l
+    ) => Proxy '(s, k, l, t) ->
+    StackWitness (Length s) (s ++ (k : t)) (s ++ (l : t)) (s ++ ((k + l) : t))
+
+instance
+  ( KnownNat n, KnownNat m, KnownNat k, Ix d
+  , n + m ~ k, 1 <= n, 1 <= m, 1 <= k
+  ) => Stacks PZ (n : d) (m : d) (k : d) where
+  stacks = SW (Proxy @' ('[], n, m, d))
 
 instance Stacks i d e r => Stacks (PS i) (n : d) (n : e) (n : r) where
-  stacks = case stacks @i @d @e @r of
-             (SZ m s)            -> SS (Proxy @'[n]) m s
-             (SS (Proxy @p) m s) -> SS (Proxy @(n:p)) m s
+  stacks = case stacks @i of
+    SW (Proxy @'(s, k, l, t)) -> SW (Proxy @'(n : s, k, l, t))
 
 -- | @stack i@ stacks arrays along the axis @i@. All other axes are required
 -- to be the same lengths.
 stack ::
-  forall n ->
-  ( err ~ StackError n d1 d2
-  , Stacks (Peano n) d1 d2 (Stack err (Peano n) d1 d2)
-  , Storable e
-  ) => NDArr d1 e -> NDArr d2 e -> NDArr (Stack err (Peano n) d1 d2) e
-stack n = go (stacks @(Peano n))
-  where
-    go ::
-      forall n d1 d2 dr e. Storable e => StackWitness n d1 d2 dr ->
-      NDArr d1 e -> NDArr d2 e -> NDArr dr e
-    go (SZ _ _) (MkNDArr xs) (MkNDArr ys) = MkNDArr (xs <> ys)
-    go (SS (Proxy @p) m@(Proxy @'(a, b, _)) s@(Proxy @s)) xs ys =
-      concat $ zipWith (go (SZ m s)) (rows @p @(a : s) xs) (rows @p @(b : s) ys)
+  forall n -> (Stacks (Peano n) d1 d2 (Stack n d1 d2), Storable e) =>
+  NDArr d1 e -> NDArr d2 e -> NDArr (Stack n d1 d2) e
+stack n xs ys = case stacks @(Peano n) of
+  SW (Proxy @'(s, k, l, t)) ->
+    concat $ zipWith vstack (rows @s @(k : t) xs) (rows @s @(l : t) ys)
