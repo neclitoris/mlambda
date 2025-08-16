@@ -53,13 +53,11 @@ propAtDotFromIndex = do
 propFromIndexDotAt :: Property ()
 propFromIndexDotAt = do
   dim <- gen genDim
-  let p = withIx dim \(Proxy @dim) ->
-        case inst @dim of
-          _ -> do
-            arr <- gen (genNDArr @dim)
-            assert $ Pred.eq
-                  .$ ("fromIndex . at", (fromIndex . at) arr)
-                  .$ ("id", arr)
+  let p = withIx dim \(Proxy @dim) -> do
+        arr <- gen (genNDArr @dim)
+        assert $ Pred.eq
+              .$ ("fromIndex . at", (fromIndex . at) arr)
+              .$ ("id", arr)
   fromMaybe (error "propFromIndexDotAt: impossible") p
 
 testFromIndex :: TestTree

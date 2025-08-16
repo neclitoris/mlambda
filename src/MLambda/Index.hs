@@ -119,8 +119,8 @@ data IxInstance (dim :: [Natural]) where
   IxInstance :: Ix dim => IxInstance dim
 
 viewII :: IndexI dim -> IxInstance dim
-viewII (_ :.= _)  = IxInstance
-viewII EI         = IxInstance
+viewII (_ :.= _) = IxInstance
+viewII EI        = IxInstance
 
 -- | A simpler pattern for @`IndexI`@ in case you don't need instances
 -- for suffixes.
