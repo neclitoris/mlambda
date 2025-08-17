@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       MLambda.Index
+      MLambda.Linear
       MLambda.Matrix
       MLambda.NDArr
       MLambda.TypeLits
@@ -39,6 +40,7 @@ library
       RankNTypes
       PolyKinds
       UndecidableInstances
+      NoStarIsType
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
@@ -48,6 +50,8 @@ library
     , massiv
     , mtl
     , netlib-ffi
+    , singletons
+    , singletons-base
     , template-haskell
     , vector
   default-language: GHC2024
@@ -56,6 +60,9 @@ test-suite ml-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Test.MLambda.Matrix
+      Test.MLambda.NDArr
+      Test.MLambda.Utils
       Paths_ml
   autogen-modules:
       Paths_ml
@@ -67,16 +74,20 @@ test-suite ml-test
       RankNTypes
       PolyKinds
       UndecidableInstances
+      NoStarIsType
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , blas-ffi
     , deepseq
+    , falsify
     , haskell-src-meta
     , massiv
     , ml
     , mtl
     , netlib-ffi
+    , singletons
+    , singletons-base
     , tasty
     , tasty-hunit
     , template-haskell
@@ -98,6 +109,7 @@ benchmark ml-bench
       RankNTypes
       PolyKinds
       UndecidableInstances
+      NoStarIsType
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
@@ -110,6 +122,8 @@ benchmark ml-bench
     , netlib-ffi
     , normaldistribution
     , random
+    , singletons
+    , singletons-base
     , tasty-bench
     , template-haskell
     , vector

@@ -29,6 +29,9 @@ dependencies:
 - template-haskell
 - vector
 - haskell-src-meta
+- singletons
+- singletons-base
+# - ghc-typelits-natnormalise
 
 ghc-options:
 - -Wall
@@ -72,6 +75,9 @@ tests:
     - ml
     - tasty
     - tasty-hunit
+    - falsify
+    - singletons
+    - singletons-base
 
 language: GHC2024
 default-extensions:
@@ -80,3 +86,4 @@ default-extensions:
 - RankNTypes
 - PolyKinds
 - UndecidableInstances
+- NoStarIsType

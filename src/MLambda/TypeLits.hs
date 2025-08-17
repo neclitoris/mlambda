@@ -17,9 +17,8 @@ module MLambda.TypeLits
   , natVal
   , enumSize
   , Unify
-  , type (++)
   , PNat (..)
-  , Length
+  , PLength
   , Peano
   , RNat (..)
   , RPNat (..)
@@ -45,18 +44,13 @@ type family Unify n a b where
   Unify _ a a = a
   Unify n a b = TypeError (Text n :<>: Text " are not equal:" :$$: ShowType a :$$: ShowType b)
 
--- | Type-level list concatenation.
-type family xs ++ ys where
-  '[] ++ ys = ys
-  (x:xs) ++ ys = x : xs ++ ys
-
 -- | Peano naturals.
 data PNat = PZ | PS PNat
 
 -- | Compute length of a type-level list as a Peano natural.
-type family Length xs where
-  Length '[] = PZ
-  Length (_:xs) = PS (Length xs)
+type family PLength xs where
+  PLength '[] = PZ
+  PLength (_:xs) = PS (PLength xs)
 
 -- | Compute Peano representation from type-level natural.
 type family Peano n where
