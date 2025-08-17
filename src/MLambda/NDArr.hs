@@ -26,6 +26,12 @@ module MLambda.NDArr
   , at
   , row
   , rows
+  -- * Array operations
+  , toList
+  , concat
+  , map
+  , zipWith
+  , foldr
   -- * Array composition
   , Stack
   , Stacks
@@ -34,15 +40,20 @@ module MLambda.NDArr
   , stackWithWitness
   -- * Unsafe API
   , unsafeMkNDArr
+  -- * Shape manipulation
+  , reshape
+  , prependDim
+  , stripDim
   ) where
 
 import MLambda.Index
 import MLambda.TypeLits
+import MLambda.Linear
 
 import Control.DeepSeq (NFData)
 import Control.Monad.ST (runST)
 import Data.Foldable (forM_)
-import Data.List (intersperse)
+import Data.List qualified as List
 import Data.List.Singletons
 import Data.Singletons
 import Data.Vector.Storable qualified as Storable
@@ -50,7 +61,7 @@ import Data.Vector.Storable.Mutable qualified as Mutable
 import Foreign.Ptr (Ptr, castPtr)
 import Foreign.Storable (Storable (..))
 import GHC.TypeError (ErrorMessage (..), TypeError)
-import Prelude hiding (concat, zipWith)
+import Prelude hiding (map, concat, zipWith, foldr)
 
 -- | @NDArr [n1,...,nd] e@ is a type of arrays with dimensions @n1 x ... x nd@
 -- consisting of elements of type @e@.
@@ -75,8 +86,8 @@ instance (Ix dim, Show e, Storable e) => Show (NDArr dim e) where
       go :: forall n r e' . (Ix r, Show (NDArr r e'), Storable e') => NDArr (n:r) e' -> ShowS
       go = (showString "[" .) . (. showString "]")
           . foldl' (.) id
-          . intersperse (showString ",\n")
-          . map shows
+          . List.intersperse (showString ",\n")
+          . List.map shows
           . toList . rows @'[n]
 
 instance (Ix d, Storable e) => Storable (NDArr d e) where
@@ -84,6 +95,13 @@ instance (Ix d, Storable e) => Storable (NDArr d e) where
   alignment _ = alignment (undefined :: e)
   peek (castPtr -> (ptr :: Ptr e)) = fromIndexM (peekElemOff ptr . fromEnum)
   poke (castPtr -> (ptr :: Ptr e)) = (`Storable.iforM_` pokeElemOff ptr) . runNDArr
+
+instance (Ix d, Storable r, Num r) => Additive (NDArr d r) where
+  add = zipWith (+)
+  zero = MkNDArr $ Storable.replicate (enumSize (Index d)) 0
+
+instance (Ix d, Storable r, Num r) => Module r (NDArr d r) where
+  modMult r = MkNDArr . Storable.map (r *) . runNDArr
 
 -- | Construct an array from a function @f@ that maps indices to elements.
 -- This function is strict and therefore @f@ can't refer to the result of
@@ -104,37 +122,49 @@ fromIndexM f = do
   vec <- Storable.unsafeFreeze mvec
   pure $ MkNDArr vec
 
--- | Access array element by its index. This is a total function.
+-- | O(1). Access array element by its index. This is a total function.
 at :: (Storable e, Ix dim) => NDArr dim e -> Index dim -> e
 (MkNDArr v) `at` i = v Storable.! fromEnum i
 
 infixl 9 `at`
 
--- | Extract a "row" from the array. If you're used to C or numpy arrays,
+-- | O(1). Extract a "row" from the array. If you're used to C or numpy arrays,
 -- this is similar to @a[i]@.
 row ::
   forall d1 d2 e. (Ix d1, Ix d2, Storable e) =>
   Index d1 -> NDArr (d1 ++ d2) e -> NDArr d2 e
 row i a = rows a `at` i
 
--- | Extract all "rows" from the array as an array.
+-- | O(1). Extract all "rows" from the array as an array.
 rows ::
   forall d1 d2 e. (Ix d2, Storable e) =>
   NDArr (d1 ++ d2) e -> NDArr d1 (NDArr d2 e)
 rows = MkNDArr . Storable.unsafeCast . runNDArr
 
+-- | O(array_size). Extract @`NDArr`@ elements as a list in the order they are
+-- laid out in memory.
 toList :: Storable e => NDArr d e -> [e]
 toList = Storable.toList . runNDArr
 
+-- | O(1). Flatten an array of arrays into a single array.
 concat ::
   forall d1 d2 e. (Ix d2, Storable e) =>
   NDArr d1 (NDArr d2 e) -> NDArr (d1 ++ d2) e
 concat = MkNDArr . Storable.unsafeCast . runNDArr
 
+-- | O(array_size). Transform elements of an array.
+map :: (Storable a, Storable b) => (a -> b) -> NDArr d a -> NDArr d b
+map f = MkNDArr . Storable.map f . runNDArr
+
+-- | O(array_size). Combine two arrays into one element-by-element.
 zipWith ::
   (Storable a, Storable b, Storable c) =>
   (a -> b -> c) -> NDArr d a -> NDArr d b -> NDArr d c
 zipWith f (MkNDArr xs) (MkNDArr ys) = MkNDArr (Storable.zipWith f xs ys)
+
+-- | O(array_size). Reduce array using an accumulator function and initial value.
+foldr :: Storable a => (a -> r -> r) -> r -> NDArr d a -> r
+foldr f r = Storable.foldr f r . runNDArr
 
 vstack ::
   Storable e => NDArr (k : d) e -> NDArr (l : d) e -> NDArr ((k + l) : d) e
@@ -187,3 +217,19 @@ stack ::
   forall n -> (Stacks (Peano n) d1 d2 (Stack (Peano n) d1 d2), Storable e) =>
   NDArr d1 e -> NDArr d2 e -> NDArr (Stack (Peano n) d1 d2) e
 stack n = stackWithWitness (stacks @(Peano n))
+
+type family Size d where
+  Size '[]    = 1
+  Size (x:xs) = x * Size xs
+
+-- | Change the shape of an array.
+reshape :: forall d2 -> (Size d1 ~ Size d2) => NDArr d1 e -> NDArr d2 e
+reshape _ = MkNDArr . runNDArr
+
+-- | Prepend a single dimension of size 1.
+prependDim :: NDArr d e -> NDArr (1:d) e
+prependDim = MkNDArr . runNDArr
+
+-- | Remove a dimension of size 1 from the front.
+stripDim :: NDArr (1:d) e -> NDArr d e
+stripDim = MkNDArr . runNDArr

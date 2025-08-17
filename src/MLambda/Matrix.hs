@@ -3,6 +3,7 @@
 {-# LANGUAGE RequiredTypeArguments #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 
 -- |
 -- Module      : MLambda.Matrix
@@ -20,10 +21,18 @@ module MLambda.Matrix
   , crossMassiv
   -- * Matrix creation
   , mat
+  , eye
+  , rep
+  , act
+  -- * Shape manipulation
+  , transpose
   ) where
 
 import MLambda.Foreign.Utils (asFPtr, asPtr, char)
-import MLambda.NDArr
+import MLambda.Index
+import MLambda.Linear
+import MLambda.NDArr hiding (concat, zipWith, map, foldr)
+import MLambda.NDArr qualified as NDArr
 import MLambda.TypeLits
 
 import Control.Applicative
@@ -176,3 +185,26 @@ matE s = do
               vec <- Storable.unsafeFreeze mvec
               pure $ unsafeMkNDArr @'[$tm, $tn] @Double vec
          |]
+
+-- | Identity matrix.
+eye :: (KnownNat n, 1 <= n, Storable e, Num e) => NDArr '[n, n] e
+eye = fromIndex go where
+  go (i :. j) | i == j    = 1
+              | otherwise = 0
+
+-- | A matrix that corresponds to a linear map of vector spaces.
+rep :: forall m n e .
+       ( KnownNat m, 1 <= m
+       , KnownNat n, 1 <= n
+       , Storable e, Num e)
+    => LinearMap' Storable (NDArr '[m]) (NDArr '[n]) e -> NDArr '[n, m] e
+rep f = transpose $ NDArr.concat $ fromIndex (f . (rows @'[m] eye `at`))
+
+act :: forall m n e . (KnownNat m, 1 <= m , Storable e)
+    => NDArr '[n, m] e -> LinearMap' Storable (NDArr '[m]) (NDArr '[n]) e
+act a x = NDArr.map (NDArr.foldr add zero . flip (NDArr.zipWith modMult) x) (rows a)
+
+-- | Matrix transposition.
+transpose :: (KnownNat m, 1 <= m , KnownNat n, 1 <= n , Storable e)
+          => NDArr '[m, n] e -> NDArr '[n, m] e
+transpose m = fromIndex \(i :. j) -> m `at` (j :. i)

@@ -26,6 +26,7 @@ source-repository head
 library
   exposed-modules:
       MLambda.Index
+      MLambda.Linear
       MLambda.Matrix
       MLambda.NDArr
       MLambda.TypeLits
@@ -39,11 +40,13 @@ library
       RankNTypes
       PolyKinds
       UndecidableInstances
+      NoStarIsType
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
     , blas-ffi
     , deepseq
+    , ghc-typelits-natnormalise
     , haskell-src-meta
     , massiv
     , mtl
@@ -58,6 +61,7 @@ test-suite ml-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Test.MLambda.Matrix
       Test.MLambda.NDArr
       Test.MLambda.Utils
       Paths_ml
@@ -71,12 +75,14 @@ test-suite ml-test
       RankNTypes
       PolyKinds
       UndecidableInstances
+      NoStarIsType
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , blas-ffi
     , deepseq
     , falsify
+    , ghc-typelits-natnormalise
     , haskell-src-meta
     , massiv
     , ml
@@ -105,11 +111,13 @@ benchmark ml-bench
       RankNTypes
       PolyKinds
       UndecidableInstances
+      NoStarIsType
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , blas-ffi
     , deepseq
+    , ghc-typelits-natnormalise
     , haskell-src-meta
     , massiv
     , ml
