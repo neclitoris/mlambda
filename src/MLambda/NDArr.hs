@@ -47,8 +47,8 @@ module MLambda.NDArr
   ) where
 
 import MLambda.Index
-import MLambda.TypeLits
 import MLambda.Linear
+import MLambda.TypeLits
 
 import Control.DeepSeq (NFData)
 import Control.Monad.ST (runST)
@@ -61,7 +61,7 @@ import Data.Vector.Storable.Mutable qualified as Mutable
 import Foreign.Ptr (Ptr, castPtr)
 import Foreign.Storable (Storable (..))
 import GHC.TypeError (ErrorMessage (..), TypeError)
-import Prelude hiding (map, concat, zipWith, foldr)
+import Prelude hiding (concat, foldr, map, zipWith)
 
 -- | @NDArr [n1,...,nd] e@ is a type of arrays with dimensions @n1 x ... x nd@
 -- consisting of elements of type @e@.

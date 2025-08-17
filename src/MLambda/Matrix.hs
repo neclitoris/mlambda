@@ -31,7 +31,7 @@ module MLambda.Matrix
 import MLambda.Foreign.Utils (asFPtr, asPtr, char)
 import MLambda.Index
 import MLambda.Linear
-import MLambda.NDArr hiding (concat, zipWith, map, foldr)
+import MLambda.NDArr hiding (concat, foldr, map, zipWith)
 import MLambda.NDArr qualified as NDArr
 import MLambda.TypeLits
 
@@ -200,6 +200,7 @@ rep :: forall m n e .
     => LinearMap' Storable (NDArr '[m]) (NDArr '[n]) e -> NDArr '[n, m] e
 rep f = transpose $ NDArr.concat $ fromIndex (f . (rows @'[m] eye `at`))
 
+-- | A linear map of vector spaces that corresponds to a matrix.
 act :: forall m n e . (KnownNat m, 1 <= m , Storable e)
     => NDArr '[n, m] e -> LinearMap' Storable (NDArr '[m]) (NDArr '[n]) e
 act a x = NDArr.map (NDArr.foldr add zero . flip (NDArr.zipWith modMult) x) (rows a)
