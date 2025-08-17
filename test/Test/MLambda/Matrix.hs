@@ -1,7 +1,6 @@
 {-# LANGUAGE TypeAbstractions #-}
 module Test.MLambda.Matrix (testMatrix) where
 
-import MLambda.Index
 import MLambda.Matrix
 import MLambda.NDArr as NDArr
 import MLambda.TypeLits
@@ -10,13 +9,8 @@ import Test.MLambda.Utils
 
 import Control.Monad
 import Data.Bool.Singletons
-import Data.List.Singletons (type (++))
-import Data.Maybe
-import Data.Proxy
 import Data.Singletons
 import GHC.TypeLits.Singletons
-import Prelude.Singletons ((%+))
-import Test.Falsify.Generator qualified as Gen
 import Test.Falsify.Predicate ((.$))
 import Test.Falsify.Predicate qualified as Pred
 import Test.Tasty
@@ -47,7 +41,7 @@ propCompose = do
   let c = a `cross` b
       c' = rep (act a . act b)
       eps = 10**(-7)
-      diff = NDArr.zipWith (\a b -> abs (a - b)) c c'
+      diff = NDArr.zipWith (\x y -> abs (x - y)) c c'
   forM_ [minBound..maxBound] $ \i ->
     when (diff `at` i > eps) $ testFailed "matrices unequal"
 

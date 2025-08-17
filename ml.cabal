@@ -46,7 +46,6 @@ library
       base >=4.7 && <5
     , blas-ffi
     , deepseq
-    , ghc-typelits-natnormalise
     , haskell-src-meta
     , massiv
     , mtl
@@ -82,7 +81,6 @@ test-suite ml-test
     , blas-ffi
     , deepseq
     , falsify
-    , ghc-typelits-natnormalise
     , haskell-src-meta
     , massiv
     , ml
@@ -117,7 +115,6 @@ benchmark ml-bench
       base >=4.7 && <5
     , blas-ffi
     , deepseq
-    , ghc-typelits-natnormalise
     , haskell-src-meta
     , massiv
     , ml

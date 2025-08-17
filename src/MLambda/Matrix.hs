@@ -3,7 +3,6 @@
 {-# LANGUAGE RequiredTypeArguments #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 
 -- |
 -- Module      : MLambda.Matrix
