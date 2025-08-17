@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeAbstractions #-}
 module Test.MLambda.Utils where
 
 import MLambda.Index
@@ -5,9 +6,9 @@ import MLambda.NDArr
 import MLambda.TypeLits
 
 import Data.Proxy
+import Foreign.Storable
 import Test.Falsify.Generator (Gen)
 import Test.Falsify.Generator qualified as Gen
-import Test.Falsify.Range (Range)
 import Test.Falsify.Range qualified as Range
 
 genSz :: Gen Natural
@@ -19,6 +20,10 @@ genDim a b = Gen.list (Range.between (a, b)) genSz
 genInt :: Gen Int
 genInt = Gen.inRange $ Range.between (-1000, 1000)
 
+genDouble :: Gen Double
+genDouble = Gen.inRange $ Range.fromProperFraction 64
+  \(Range.ProperFraction d) -> 1 + 4 * d
+
 genIndex :: forall dim . Ix dim => Gen (Index dim)
 genIndex = case inst @dim of
   EI -> pure E
@@ -27,9 +32,9 @@ genIndex = case inst @dim of
     t <- genIndex @t
     pure ((toEnum h :: Index '[h]) :. t)
 
-genNDArr :: forall dim . Ix dim => Gen (NDArr dim Int)
-genNDArr = do
-  Gen.Fn f <- Gen.fun genInt
+genNDArr :: forall dim e . (Storable e, Ix dim) => Gen e -> Gen (NDArr dim e)
+genNDArr g = do
+  Gen.Fn f <- Gen.fun g
   pure $ fromIndex f
 
 instance Enum (Index dim) => Gen.Function (Index dim) where

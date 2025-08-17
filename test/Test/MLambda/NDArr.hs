@@ -37,7 +37,7 @@ propFromIndexDotAt :: Property ()
 propFromIndexDotAt = do
   dim <- gen $ genDim 0 5
   let p = withIx dim \(Proxy @dim) -> do
-        arr <- gen (genNDArr @dim)
+        arr <- gen $ genNDArr @dim genInt
         assert $ Pred.eq
               .$ ("fromIndex . at", (fromIndex . at) arr)
               .$ ("id", arr)
@@ -70,8 +70,8 @@ propStack = do
                  , concatIndexI (IxI @p) (IxI @(m2 : s))
                  , concatIndexI (IxI @p) (IxI @((m1 + m2) : s))) of
               (IxI, IxI, IxI) -> do
-                arr1 <- gen $ genNDArr @(p ++ (m1 : s))
-                arr2 <- gen $ genNDArr @(p ++ (m2 : s))
+                arr1 <- gen $ genNDArr @(p ++ (m1 : s)) genInt
+                arr2 <- gen $ genNDArr @(p ++ (m2 : s)) genInt
                 let arr3 = stackWithWitness (SW (Proxy @'(p, m1, m2, s))) arr1 arr2
                 s <- gen $ genIndex @s
                 p <- gen $ genIndex @p

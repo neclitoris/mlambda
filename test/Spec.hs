@@ -1,5 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
+import Test.MLambda.Matrix
 import Test.MLambda.NDArr
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -28,4 +29,5 @@ tests = testGroup "Tests"
   [ testCase "Mul" $
       a `cross` b @?= c
   , testNDArr
+  , testMatrix
   ]
