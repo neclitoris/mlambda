@@ -59,6 +59,7 @@ test-suite ml-test
   main-is: Spec.hs
   other-modules:
       Test.MLambda.NDArr
+      Test.MLambda.Utils
       Paths_ml
   autogen-modules:
       Paths_ml
