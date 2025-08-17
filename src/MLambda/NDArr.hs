@@ -186,4 +186,4 @@ stackWithWitness (SW (Proxy @'(s, k, l, t))) xs ys =
 stack ::
   forall n -> (Stacks (Peano n) d1 d2 (Stack (Peano n) d1 d2), Storable e) =>
   NDArr d1 e -> NDArr d2 e -> NDArr (Stack (Peano n) d1 d2) e
-stack n xs ys = stackWithWitness (stacks @(Peano n)) xs ys
+stack n = stackWithWitness (stacks @(Peano n))
