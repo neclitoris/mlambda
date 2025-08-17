@@ -20,6 +20,7 @@ module MLambda.Index
   , Ix(..)
   , IndexI (..)
   , pattern IxI
+  , concatIndexI
   -- * Lifting of runtime dimesions into indices
   , singToIndexI
   , withIx
@@ -132,6 +133,13 @@ pattern IxI <- (viewII -> IxInstance) where
 deriving instance Show (IndexI dim)
 
 infixr 5 :.=
+
+-- | Concatenate two @`IndexI`@s to get the instances for concatenated
+-- dimensions.
+concatIndexI :: IndexI d1 -> IndexI d2 -> IndexI (d1 ++ d2)
+concatIndexI EI d2          = d2
+concatIndexI (i1 :.= d1) d2 = case concatIndexI d1 d2 of
+                                IxI -> i1 :.= IxI
 
 -- | A class used both as a shorthand for useful @`Index`@ instances and a way to obtain
 -- a value of @`IndexI`@.

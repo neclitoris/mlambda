@@ -29,7 +29,9 @@ module MLambda.NDArr
   -- * Array composition
   , Stack
   , Stacks
+  , StackWitness(..)
   , stack
+  , stackWithWitness
   -- * Unsafe API
   , unsafeMkNDArr
   ) where
@@ -42,7 +44,7 @@ import Control.Monad.ST (runST)
 import Data.Foldable (forM_)
 import Data.List (intersperse)
 import Data.List.Singletons
-import Data.Proxy
+import Data.Singletons
 import Data.Vector.Storable qualified as Storable
 import Data.Vector.Storable.Mutable qualified as Mutable
 import Foreign.Ptr (Ptr, castPtr)
@@ -139,7 +141,7 @@ vstack ::
 vstack (MkNDArr xs) (MkNDArr ys) = MkNDArr (xs <> ys)
 
 -- | A type family which computes the resulting size of a stacked array.
-type Stack n d e = StackImpl (StackError n d e) (Peano n) d e
+type Stack n d e = StackImpl (StackError n d e) n d e
 
 type StackError n d e =
   Text "Not enough dimensions to stack along axis " :<>: ShowType n
@@ -155,6 +157,7 @@ type family StackImpl msg i d e where
 class Stacks i dim1 dim2 dimr where
   stacks :: StackWitness i dim1 dim2 dimr
 
+-- | A witness that carries the constraints needed to stack arrays together.
 data StackWitness i d1 d2 dr where
   SW ::
     ( KnownNat k, KnownNat l, KnownNat (k + l), Ix t
@@ -172,11 +175,15 @@ instance Stacks i d e r => Stacks (PS i) (n : d) (n : e) (n : r) where
   stacks = case stacks @i of
     SW (Proxy @'(s, k, l, t)) -> SW (Proxy @'(n : s, k, l, t))
 
+-- | Sometimes you need to create a witness yourself for this to work.
+stackWithWitness :: Storable e => StackWitness n d1 d2 dr
+                 -> NDArr d1 e -> NDArr d2 e -> NDArr dr e
+stackWithWitness (SW (Proxy @'(s, k, l, t))) xs ys =
+  concat $ zipWith vstack (rows @s @(k : t) xs) (rows @s @(l : t) ys)
+
 -- | @stack i@ stacks arrays along the axis @i@. All other axes are required
 -- to be the same lengths.
 stack ::
-  forall n -> (Stacks (Peano n) d1 d2 (Stack n d1 d2), Storable e) =>
-  NDArr d1 e -> NDArr d2 e -> NDArr (Stack n d1 d2) e
-stack n xs ys = case stacks @(Peano n) of
-  SW (Proxy @'(s, k, l, t)) ->
-    concat $ zipWith vstack (rows @s @(k : t) xs) (rows @s @(l : t) ys)
+  forall n -> (Stacks (Peano n) d1 d2 (Stack (Peano n) d1 d2), Storable e) =>
+  NDArr d1 e -> NDArr d2 e -> NDArr (Stack (Peano n) d1 d2) e
+stack n xs ys = stackWithWitness (stacks @(Peano n)) xs ys
