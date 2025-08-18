@@ -18,6 +18,7 @@ module MLambda.Matrix
   -- * Matrix multiplication
   ( cross
   , crossMassiv
+  , crossNaive
   -- * Matrix creation
   , mat
   , eye
@@ -104,6 +105,29 @@ cross :: forall m k n e . (KnownNat n, KnownNat m, KnownNat k, BLAS.Floating e)
       beta cptr nptr
   let carr = Storable.unsafeFromForeignPtr0 cfptr len
   pure $ unsafeMkNDArr carr
+
+crossGeneric :: forall m k n e1 e2 e3 .
+                ( KnownNat n, KnownNat m, KnownNat k
+                , 1 <= n, 1 <= m, 1 <= k
+                , Storable e1, Storable e2, Storable e3)
+             => (e1 -> e2 -> e3) -> (e3 -> e3 -> e3)
+             -> NDArr '[m, k] e1 -> NDArr '[k, n] e2 -> NDArr '[m, n] e3
+crossGeneric mul plus a b = runST do
+  mvec <- Mutable.new (natVal m * natVal n)
+  forM_ [minBound..maxBound :: Index '[m]] \i ->
+    forM_ [minBound..maxBound :: Index '[k]] \k ->
+      forM_ [minBound..maxBound :: Index '[n]] \j ->
+        Mutable.modify mvec
+          (plus (mul (a `at` (i :. k)) (b `at` (k :. j))))
+          (fromEnum (i :. j))
+  unsafeMkNDArr @'[m, n] <$> Storable.unsafeFreeze mvec
+
+-- | Naive implementation of matrix multiplication.
+crossNaive :: ( KnownNat n, KnownNat m, KnownNat k
+              , 1 <= n, 1 <= m, 1 <= k
+              , Storable e, Num e)
+           => NDArr '[m, k] e -> NDArr '[k, n] e -> NDArr '[m, n] e
+crossNaive = crossGeneric (*) (+)
 
 infixl 7 `cross`
 infixl 7 `crossMassiv`
@@ -201,9 +225,12 @@ rep :: forall m n e .
 rep f = transpose $ NDArr.concat $ fromIndex (f . (rows @'[m] eye `at`))
 
 -- | A linear map of vector spaces that corresponds to a matrix.
-act :: forall m n e . (KnownNat m, 1 <= m , Storable e)
+act :: forall m n e .
+       ( KnownNat m, 1 <= m
+       , KnownNat n, 1 <= n
+       , Storable e)
     => NDArr '[n, m] e -> LinearMap' Storable (NDArr '[m]) (NDArr '[n]) e
-act a x = NDArr.map (NDArr.foldr add zero . flip (NDArr.zipWith modMult) x) (rows a)
+act a = reshape [n] . crossGeneric modMult add a . reshape [m, 1]
 
 -- | Matrix transposition.
 transpose :: (KnownNat m, 1 <= m, KnownNat n, 1 <= n, Storable e)

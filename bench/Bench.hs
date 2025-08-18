@@ -34,5 +34,6 @@ main = defaultMain
     bgroup "matmul"
     [ bench "Massiv" $ nf (uncurry crossMassiv) input
     , bench "OpenBLAS" $ nf (uncurry cross) input
+    , bench "Naive" $ nf (uncurry crossNaive) input
     ]
   ]
