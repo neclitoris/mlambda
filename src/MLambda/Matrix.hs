@@ -55,7 +55,8 @@ import GHC.Ptr
 import Language.Haskell.Meta.Parse qualified as Haskell
 import Language.Haskell.TH qualified as TH
 import Language.Haskell.TH.Quote qualified as Quote
-import Numeric.BLAS.FFI.Double
+import Numeric.BLAS.FFI.Generic
+import Numeric.Netlib.Class qualified as BLAS
 import Text.ParserCombinators.ReadP qualified as P
 
 massivSize :: forall m n -> (KnownNat m, KnownNat n) => Massiv.Sz2
@@ -74,13 +75,13 @@ toMassiv = Massiv.fromVector' Massiv.Par (massivSize m n) . runNDArr
 
 -- | Matrix product reused from massiv.
 crossMassiv ::
-  (KnownNat m, KnownNat k, KnownNat n) =>
-  NDArr [m, k] Double -> NDArr [k, n] Double -> NDArr [m, n] Double
+  (KnownNat m, KnownNat k, KnownNat n, Num e, Storable e) =>
+  NDArr [m, k] e -> NDArr [k, n] e -> NDArr [m, n] e
 crossMassiv a b = fromMassiv $ toMassiv a Massiv.!><! toMassiv b
 
 -- | Your usual matrix product. Calls into BLAS's @gemm@ operation.
-cross :: forall m k n . (KnownNat n, KnownNat m, KnownNat k)
-    => NDArr [m, k] Double -> NDArr [k, n] Double -> NDArr [m, n] Double
+cross :: forall m k n e . (KnownNat n, KnownNat m, KnownNat k, BLAS.Floating e)
+    => NDArr [m, k] e -> NDArr [k, n] e -> NDArr [m, n] e
 (runNDArr -> a) `cross` (runNDArr -> b) = unsafePerformIO $ evalContT do
   let (afptr, _alen) = Storable.unsafeToForeignPtr0 a
       (bfptr, _blen) = Storable.unsafeToForeignPtr0 b
@@ -205,6 +206,6 @@ act :: forall m n e . (KnownNat m, 1 <= m , Storable e)
 act a x = NDArr.map (NDArr.foldr add zero . flip (NDArr.zipWith modMult) x) (rows a)
 
 -- | Matrix transposition.
-transpose :: (KnownNat m, 1 <= m , KnownNat n, 1 <= n , Storable e)
+transpose :: (KnownNat m, 1 <= m, KnownNat n, 1 <= n, Storable e)
           => NDArr '[m, n] e -> NDArr '[n, m] e
 transpose m = fromIndex \(i :. j) -> m `at` (j :. i)
