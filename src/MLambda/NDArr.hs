@@ -52,7 +52,6 @@ import MLambda.TypeLits
 
 import Control.DeepSeq (NFData)
 import Control.Monad.ST (runST)
-import Data.Foldable (forM_)
 import Data.List qualified as List
 import Data.List.Singletons
 import Data.Singletons

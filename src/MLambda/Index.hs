@@ -109,7 +109,7 @@ instance (KnownNat n, 1 <= n, Enum (Index d), Bounded (Index d)) =>
 enumerate :: forall d -> Ix d => [Index d]
 enumerate d =
   case IxI @d of
-    EI -> []
+    EI           -> []
     _ :.= IxI @r -> (:.) <$> [minBound..maxBound] <*> enumerate r
 
 -- | Efficiently (not yet) iterate through indices in lexicographic order.
