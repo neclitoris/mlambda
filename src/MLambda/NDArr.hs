@@ -118,7 +118,7 @@ fromIndexM :: forall dim m e . (Mutable.PrimMonad m, Ix dim, Storable e)
            => (Index dim -> m e) -> m (NDArr dim e)
 fromIndexM f = do
   mvec <- Mutable.new (enumSize (Index dim))
-  forM_ [minBound..maxBound] (\i -> f i >>= Mutable.write mvec (fromEnum i))
+  loop_ (\i -> f i >>= Mutable.write mvec (fromEnum i))
   vec <- Storable.unsafeFreeze mvec
   pure $ MkNDArr vec
 
