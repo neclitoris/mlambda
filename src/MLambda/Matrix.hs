@@ -114,9 +114,9 @@ crossGeneric :: forall m k n e1 e2 e3 .
              -> NDArr '[m, k] e1 -> NDArr '[k, n] e2 -> NDArr '[m, n] e3
 crossGeneric mul plus a b = runST do
   mvec <- Mutable.new (natVal m * natVal n)
-  forM_ [minBound..maxBound :: Index '[m]] \i ->
-    forM_ [minBound..maxBound :: Index '[k]] \k ->
-      forM_ [minBound..maxBound :: Index '[n]] \j ->
+  loop_ \i ->
+    loop_ \k ->
+      loop_ \j ->
         Mutable.modify mvec
           (plus (mul (a `at` (i :. k)) (b `at` (k :. j))))
           (fromEnum (i :. j))

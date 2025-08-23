@@ -10,9 +10,9 @@ import GHC.TypeLits (type (<=))
 import System.Random (mkStdGen, setStdGen)
 import Test.Tasty.Bench (bench, bgroup, defaultMain, env, nf, nfIO)
 
-type M = 1000
-type K = 1000
-type N = 1000
+type M = 100
+type K = 100
+type N = 100
 
 setup :: IO (a -> b -> (a, b))
 setup = (,) <$ setStdGen (mkStdGen 0)

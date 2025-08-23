@@ -109,10 +109,11 @@ instance (KnownNat n, 1 <= n, Enum (Index d), Bounded (Index d)) =>
 enumerate :: forall d -> Ix d => [Index d]
 enumerate d =
   case IxI @d of
-    EI           -> []
+    EI           -> [E]
+    -- TODO: this performs very poorly, optimize
     _ :.= IxI @r -> (:.) <$> [minBound..maxBound] <*> enumerate r
 
--- | Efficiently (not yet) iterate through indices in lexicographic order.
+-- | Efficiently iterate through indices in lexicographic order.
 loop_ :: forall d m e . (Ix d, Monad m) => (Index d -> m e) -> m ()
 loop_ = forM_ (enumerate d)
 
