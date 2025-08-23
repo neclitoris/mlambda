@@ -28,6 +28,7 @@ module MLambda.Index
   -- * Index operations
   , concatIndex
   -- * Efficient iteration
+  , enumerate
   , loop_
   ) where
 
@@ -103,13 +104,17 @@ instance (KnownNat n, 1 <= n, Enum (Index d), Bounded (Index d)) =>
   pred (h :. t) | t == minBound = pred h :. maxBound
                 | otherwise     = h :. pred t
 
+-- | Efficiently (compared to @`enumFromTo`@) enumerate all indices in lexicographic
+-- order.
+enumerate :: forall d -> Ix d => [Index d]
+enumerate d =
+  case IxI @d of
+    EI -> []
+    _ :.= IxI @r -> (:.) <$> [minBound..maxBound] <*> enumerate r
+
 -- | Efficiently (not yet) iterate through indices in lexicographic order.
 loop_ :: forall d m e . (Ix d, Monad m) => (Index d -> m e) -> m ()
-loop_ f =
-  case IxI @d of
-    EI      -> void $ f E
-    _ :.= _ -> forM_ [minBound..maxBound] \i -> loop_ (f . (i :.))
-
+loop_ = forM_ (enumerate d)
 
 -- | Concatenate two indices together
 concatIndex :: forall xs ys . Index xs -> Index ys -> Index (xs ++ ys)
