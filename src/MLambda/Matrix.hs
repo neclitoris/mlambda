@@ -18,6 +18,7 @@ module MLambda.Matrix
   -- * Matrix multiplication
   ( cross
   , crossMassiv
+  , crossNaive
   -- * Matrix creation
   , mat
   , eye
@@ -55,7 +56,8 @@ import GHC.Ptr
 import Language.Haskell.Meta.Parse qualified as Haskell
 import Language.Haskell.TH qualified as TH
 import Language.Haskell.TH.Quote qualified as Quote
-import Numeric.BLAS.FFI.Double
+import Numeric.BLAS.FFI.Generic
+import Numeric.Netlib.Class qualified as BLAS
 import Text.ParserCombinators.ReadP qualified as P
 
 massivSize :: forall m n -> (KnownNat m, KnownNat n) => Massiv.Sz2
@@ -74,13 +76,13 @@ toMassiv = Massiv.fromVector' Massiv.Par (massivSize m n) . runNDArr
 
 -- | Matrix product reused from massiv.
 crossMassiv ::
-  (KnownNat m, KnownNat k, KnownNat n) =>
-  NDArr [m, k] Double -> NDArr [k, n] Double -> NDArr [m, n] Double
+  (KnownNat m, KnownNat k, KnownNat n, Num e, Storable e) =>
+  NDArr [m, k] e -> NDArr [k, n] e -> NDArr [m, n] e
 crossMassiv a b = fromMassiv $ toMassiv a Massiv.!><! toMassiv b
 
 -- | Your usual matrix product. Calls into BLAS's @gemm@ operation.
-cross :: forall m k n . (KnownNat n, KnownNat m, KnownNat k)
-    => NDArr [m, k] Double -> NDArr [k, n] Double -> NDArr [m, n] Double
+cross :: forall m k n e . (KnownNat n, KnownNat m, KnownNat k, BLAS.Floating e)
+    => NDArr [m, k] e -> NDArr [k, n] e -> NDArr [m, n] e
 (runNDArr -> a) `cross` (runNDArr -> b) = unsafePerformIO $ evalContT do
   let (afptr, _alen) = Storable.unsafeToForeignPtr0 a
       (bfptr, _blen) = Storable.unsafeToForeignPtr0 b
@@ -103,6 +105,29 @@ cross :: forall m k n . (KnownNat n, KnownNat m, KnownNat k)
       beta cptr nptr
   let carr = Storable.unsafeFromForeignPtr0 cfptr len
   pure $ unsafeMkNDArr carr
+
+crossGeneric :: forall m k n e1 e2 e3 .
+                ( KnownNat n, KnownNat m, KnownNat k
+                , 1 <= n, 1 <= m, 1 <= k
+                , Storable e1, Storable e2, Storable e3)
+             => (e1 -> e2 -> e3) -> (e3 -> e3 -> e3)
+             -> NDArr '[m, k] e1 -> NDArr '[k, n] e2 -> NDArr '[m, n] e3
+crossGeneric mul plus a b = runST do
+  mvec <- Mutable.new (natVal m * natVal n)
+  loop_ \i ->
+    loop_ \k ->
+      loop_ \j ->
+        Mutable.modify mvec
+          (plus (mul (a `at` (i :. k)) (b `at` (k :. j))))
+          (fromEnum (i :. j))
+  unsafeMkNDArr @'[m, n] <$> Storable.unsafeFreeze mvec
+
+-- | Naive implementation of matrix multiplication.
+crossNaive :: ( KnownNat n, KnownNat m, KnownNat k
+              , 1 <= n, 1 <= m, 1 <= k
+              , Storable e, Num e)
+           => NDArr '[m, k] e -> NDArr '[k, n] e -> NDArr '[m, n] e
+crossNaive = crossGeneric (*) (+)
 
 infixl 7 `cross`
 infixl 7 `crossMassiv`
@@ -200,11 +225,14 @@ rep :: forall m n e .
 rep f = transpose $ NDArr.concat $ fromIndex (f . (rows @'[m] eye `at`))
 
 -- | A linear map of vector spaces that corresponds to a matrix.
-act :: forall m n e . (KnownNat m, 1 <= m , Storable e)
+act :: forall m n e .
+       ( KnownNat m, 1 <= m
+       , KnownNat n, 1 <= n
+       , Storable e)
     => NDArr '[n, m] e -> LinearMap' Storable (NDArr '[m]) (NDArr '[n]) e
-act a x = NDArr.map (NDArr.foldr add zero . flip (NDArr.zipWith modMult) x) (rows a)
+act a = reshape [n] . crossGeneric modMult add a . reshape [m, 1]
 
 -- | Matrix transposition.
-transpose :: (KnownNat m, 1 <= m , KnownNat n, 1 <= n , Storable e)
+transpose :: (KnownNat m, 1 <= m, KnownNat n, 1 <= n, Storable e)
           => NDArr '[m, n] e -> NDArr '[n, m] e
 transpose m = fromIndex \(i :. j) -> m `at` (j :. i)

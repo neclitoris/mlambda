@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RequiredTypeArguments #-}
 {-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE ViewPatterns #-}
 -- |
@@ -26,14 +27,19 @@ module MLambda.Index
   , withIx
   -- * Index operations
   , concatIndex
+  -- * Efficient iteration
+  , enumerate
+  , loop_
   ) where
 
 import MLambda.TypeLits
 
+import Control.Monad
 import Data.Bool.Singletons
 import Data.List.Singletons
 import Data.Singletons
 import GHC.TypeLits.Singletons hiding (natVal)
+
 
 -- | @Index dim@ is the type of indices of multidimensional arrays of dimensions @dim@.
 -- Instances are provided for convenient use:
@@ -97,6 +103,19 @@ instance (KnownNat n, 1 <= n, Enum (Index d), Bounded (Index d)) =>
                 | otherwise     = h :. succ t
   pred (h :. t) | t == minBound = pred h :. maxBound
                 | otherwise     = h :. pred t
+
+-- | Efficiently (compared to @`enumFromTo`@) enumerate all indices in lexicographic
+-- order.
+enumerate :: forall d -> Ix d => [Index d]
+enumerate d =
+  case IxI @d of
+    EI           -> [E]
+    -- TODO: this performs very poorly, optimize
+    _ :.= IxI @r -> (:.) <$> [minBound..maxBound] <*> enumerate r
+
+-- | Efficiently iterate through indices in lexicographic order.
+loop_ :: forall d m e . (Ix d, Monad m) => (Index d -> m e) -> m ()
+loop_ = forM_ (enumerate d)
 
 -- | Concatenate two indices together
 concatIndex :: forall xs ys . Index xs -> Index ys -> Index (xs ++ ys)

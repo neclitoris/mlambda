@@ -52,7 +52,6 @@ import MLambda.TypeLits
 
 import Control.DeepSeq (NFData)
 import Control.Monad.ST (runST)
-import Data.Foldable (forM_)
 import Data.List qualified as List
 import Data.List.Singletons
 import Data.Singletons
@@ -117,8 +116,8 @@ fromIndex f = runST $ fromIndexM $ pure . f
 fromIndexM :: forall dim m e . (Mutable.PrimMonad m, Ix dim, Storable e)
            => (Index dim -> m e) -> m (NDArr dim e)
 fromIndexM f = do
-  mvec <- Mutable.new (enumSize (Index dim))
-  forM_ [minBound..maxBound] (\i -> f i >>= Mutable.write mvec (fromEnum i))
+  mvec <- Mutable.unsafeNew (enumSize (Index dim))
+  loop_ (\i -> f i >>= Mutable.write mvec (fromEnum i))
   vec <- Storable.unsafeFreeze mvec
   pure $ MkNDArr vec
 
