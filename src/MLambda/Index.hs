@@ -87,6 +87,15 @@ instance Bounded (Index '[]) where
   minBound = E
   maxBound = E
 
+class FoldI d where
+  foldI :: r -> (forall d -> KnownNat d => r -> Int -> r) -> Index d -> r
+
+instance FoldI '[] where
+  foldI !acc f = const acc
+
+instance (KnownNat d, FoldI ds) => FoldI (d:ds) where
+  foldI !acc f (ICons h t) = foldI (f d acc h) f t
+
 instance (KnownNat n, 1 <= n, Bounded (Index d)) => Bounded (Index (n:d)) where
   minBound = 0    :. minBound
   maxBound = (-1) :. maxBound
@@ -95,10 +104,13 @@ instance Enum (Index '[]) where
   toEnum = const E
   fromEnum = const 0
 
-instance (KnownNat n, 1 <= n, Enum (Index d), Bounded (Index d)) =>
+instance (KnownNat n, 1 <= n, Enum (Index d), Bounded (Index d), FoldI d) =>
   Enum (Index (n:d)) where
   toEnum ((`quotRem` enumSize (Index d)) -> (q, r)) = I (q `mod` natVal n) :. toEnum r
-  fromEnum (I q :. r) = q * enumSize (Index d) + fromEnum r
+  fromEnum = foldI 0 f
+    where
+      f :: forall d -> KnownNat d => Int -> Int -> Int
+      f n r i = natVal n * r + i
   succ (h :. t) | t == maxBound = succ h :. minBound
                 | otherwise     = h :. succ t
   pred (h :. t) | t == minBound = pred h :. maxBound
@@ -162,7 +174,7 @@ concatIndexI (i1 :.= d1) d2 = case concatIndexI d1 d2 of
 
 -- | A class used both as a shorthand for useful @`Index`@ instances and a way to obtain
 -- a value of @`IndexI`@.
-class (Bounded (Index dim), Enum (Index dim)) => Ix dim where
+class (Bounded (Index dim), Enum (Index dim), FoldI dim) => Ix dim where
   -- | Returns a term-level witness of @Ix@.
   inst :: IndexI dim
 
