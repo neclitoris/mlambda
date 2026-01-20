@@ -54,6 +54,7 @@ import Control.DeepSeq (NFData)
 import Control.Monad.ST (runST)
 import Data.List qualified as List
 import Data.List.Singletons
+import Data.Primitive.PrimVar
 import Data.Singletons
 import Data.Vector.Storable qualified as Storable
 import Data.Vector.Storable.Mutable qualified as Mutable
@@ -117,7 +118,11 @@ fromIndexM :: forall dim m e . (Mutable.PrimMonad m, Ix dim, Storable e)
            => (Index dim -> m e) -> m (NDArr dim e)
 fromIndexM f = do
   mvec <- Mutable.unsafeNew (enumSize (Index dim))
-  loop_ (\i -> f i >>= Mutable.write mvec (fromEnum i))
+  ivar <- newPrimVar 0
+  loop_ (\index -> do
+    val <- f index
+    i <- fetchAddInt ivar 1
+    Mutable.write mvec i val)
   vec <- Storable.unsafeFreeze mvec
   pure $ MkNDArr vec
 

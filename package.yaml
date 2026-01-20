@@ -31,6 +31,7 @@ dependencies:
 - haskell-src-meta
 - singletons
 - singletons-base
+- primitive
 # - ghc-typelits-natnormalise
 
 ghc-options:
