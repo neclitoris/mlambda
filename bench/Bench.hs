@@ -1,3 +1,5 @@
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RequiredTypeArguments #-}
 
 import MLambda.Matrix
@@ -5,6 +7,9 @@ import MLambda.NDArr
 import MLambda.TypeLits (KnownNat, natVal)
 
 import Data.Random.Normal (normalIO)
+import Data.Massiv.Array (Array, pattern Sz2, Ix2, Comp(..))
+import Data.Massiv.Array.Manifest (S)
+import Data.Massiv.Array.Mutable (makeMArrayS, freeze)
 import Data.Vector.Storable qualified as Storable
 import GHC.TypeLits (type (<=))
 import System.Random (mkStdGen, setStdGen)
@@ -24,11 +29,15 @@ mkVec :: forall m n -> (KnownNat m, KnownNat n)
       => IO (Storable.Vector Double)
 mkVec m n = Storable.replicateM (natVal n * natVal m) normalIO
 
+mkMassiv :: forall m n -> (KnownNat m, KnownNat n) => IO (Array S Ix2 Double)
+mkMassiv m n = freeze Seq =<< makeMArrayS (Sz2 (natVal n) (natVal m)) (const normalIO)
+
 main :: IO ()
 main = defaultMain
   [ bgroup "random init"
     [ bench "NDArr" $ nfIO $ mkNd M N
     , bench "Storable.Vector" $ nfIO $ mkVec M N
+    , bench "massiv" $ nfIO $ mkMassiv M N
     ]
   , env (setup <*> mkNd M K <*> mkNd K N) \input ->
     bgroup "matmul"
