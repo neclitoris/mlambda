@@ -37,6 +37,7 @@ import MLambda.TypeLits
 import Control.Monad
 import Data.Bool.Singletons
 import Data.List.Singletons
+import Data.Maybe (fromJust)
 import Data.Singletons
 import GHC.TypeLits.Singletons hiding (natVal)
 
@@ -100,21 +101,34 @@ instance (KnownNat n, 1 <= n, Bounded (Index d)) => Bounded (Index (n:d)) where
   minBound = 0    :. minBound
   maxBound = (-1) :. maxBound
 
+class EnumImpl i where
+  succM :: i -> Maybe i
+  predM :: i -> Maybe i
+
+instance EnumImpl (Index '[]) where
+  succM = const Nothing
+  predM = const Nothing
+
+instance (KnownNat n, 1 <= n, EnumImpl (Index d), Bounded (Index d)) =>
+  EnumImpl (Index (n:d)) where
+  succM (h :. (succM -> Just t)) = Just $ h :. t
+  succM ((succM -> h) :. _)      = fmap (:. minBound) h
+  predM (h :. (predM -> Just t)) = Just $ h :. t
+  predM ((predM -> h) :. _)      = fmap (:. maxBound) h
+
 instance Enum (Index '[]) where
   toEnum = const E
   fromEnum = const 0
 
-instance (KnownNat n, 1 <= n, Enum (Index d), Bounded (Index d), FoldI d) =>
+instance (KnownNat n, 1 <= n, EnumImpl (Index d), Enum (Index d), Bounded (Index d), FoldI d) =>
   Enum (Index (n:d)) where
   toEnum ((`quotRem` enumSize (Index d)) -> (q, r)) = I (q `mod` natVal n) :. toEnum r
   fromEnum = foldI 0 f
     where
       f :: forall d -> KnownNat d => Int -> Int -> Int
       f n r i = natVal n * r + i
-  succ (h :. t) | t == maxBound = succ h :. minBound
-                | otherwise     = h :. succ t
-  pred (h :. t) | t == minBound = pred h :. maxBound
-                | otherwise     = h :. pred t
+  succ = fromJust . succM
+  pred = fromJust . predM
 
 -- | Efficiently (compared to @`enumFromTo`@) enumerate all indices in lexicographic
 -- order.
@@ -174,7 +188,7 @@ concatIndexI (i1 :.= d1) d2 = case concatIndexI d1 d2 of
 
 -- | A class used both as a shorthand for useful @`Index`@ instances and a way to obtain
 -- a value of @`IndexI`@.
-class (Bounded (Index dim), Enum (Index dim), FoldI dim) => Ix dim where
+class (Bounded (Index dim), Enum (Index dim), EnumImpl (Index dim), FoldI dim) => Ix dim where
   -- | Returns a term-level witness of @Ix@.
   inst :: IndexI dim
 
