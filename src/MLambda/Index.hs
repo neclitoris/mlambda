@@ -111,10 +111,14 @@ instance EnumImpl (Index '[]) where
 
 instance (KnownNat n, 1 <= n, EnumImpl (Index d), Bounded (Index d)) =>
   EnumImpl (Index (n:d)) where
-  succM (h :. (succM -> Just t)) = Just $ h :. t
-  succM ((succM -> h) :. _)      = fmap (:. minBound) h
-  predM (h :. (predM -> Just t)) = Just $ h :. t
-  predM ((predM -> h) :. _)      = fmap (:. maxBound) h
+  succM (I h :. t)
+    | Just t' <- succM t = Just $ I h :. t'
+    | h < natVal n - 1   = Just $ I h :. minBound
+    | otherwise          = Nothing
+  predM (I h :. t)
+    | Just t' <- predM t = Just $ I h :. t'
+    | h > 0              = Just $ I h :. maxBound
+    | otherwise          = Nothing
 
 instance Enum (Index '[]) where
   toEnum = const E
