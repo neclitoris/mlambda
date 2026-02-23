@@ -6,10 +6,10 @@ import MLambda.Matrix
 import MLambda.NDArr
 import MLambda.TypeLits (KnownNat, natVal)
 
-import Data.Random.Normal (normalIO)
-import Data.Massiv.Array (Array, pattern Sz2, Ix2, Comp(..))
+import Data.Massiv.Array (Array, Comp (..), Ix2, pattern Sz2)
 import Data.Massiv.Array.Manifest (S)
-import Data.Massiv.Array.Mutable (makeMArrayS, freeze)
+import Data.Massiv.Array.Mutable (freeze, makeMArrayS)
+import Data.Random.Normal (normalIO)
 import Data.Vector.Storable qualified as Storable
 import GHC.TypeLits (type (<=))
 import System.Random (mkStdGen, setStdGen)

@@ -77,8 +77,6 @@ tests:
     - tasty
     - tasty-hunit
     - falsify
-    - singletons
-    - singletons-base
 
 language: GHC2024
 default-extensions:
