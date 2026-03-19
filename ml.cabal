@@ -127,6 +127,7 @@ benchmark ml-bench
     , random
     , singletons
     , singletons-base
+    , tasty
     , tasty-bench
     , template-haskell
     , vector

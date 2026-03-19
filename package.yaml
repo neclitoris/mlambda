@@ -62,6 +62,7 @@ benchmarks:
     - ml
     - normaldistribution
     - random
+    - tasty
     - tasty-bench
 
 tests:
