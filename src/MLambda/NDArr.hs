@@ -115,6 +115,7 @@ fromIndex :: forall dim e . (Ix dim, Storable e) => (Index dim -> e) -> NDArr di
 fromIndex f = runST $ fromIndexM $ pure . f
 
 -- | Same as @`fromIndex`@, but monadic.
+{-# INLINE fromIndexM #-}
 fromIndexM :: forall dim m e . (Mutable.PrimMonad m, Ix dim, Storable e)
            => (Index dim -> m e) -> m (NDArr dim e)
 fromIndexM f = do
