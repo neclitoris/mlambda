@@ -37,11 +37,12 @@ module MLambda.NDArr
   , Stacks
   , StackWitness(..)
   , stack
-  , stackWithWitness
+  , stackW
   -- * Unsafe API
   , unsafeMkNDArr
   -- * Shape manipulation
   , reshape
+  , reshapeW
   , prependDim
   , stripDim
   ) where
@@ -57,6 +58,7 @@ import Data.Foldable (for_)
 import Data.List qualified as List
 import Data.List.Singletons
 import Data.Singletons
+import Data.Type.Equality
 import Data.Vector.Storable qualified as Storable
 import Data.Vector.Storable.Mutable qualified as Mutable
 import Foreign.Ptr (Ptr, castPtr)
@@ -75,6 +77,7 @@ newtype NDArr (dim :: [Natural]) e = MkNDArr {
 
 -- | Unsafe O(1) constructor of new multidimensional arrays from row-first raw data.
 -- Unsafe because size is not checked.
+{-# INLINABLE unsafeMkNDArr #-}
 unsafeMkNDArr :: forall dim e. Storable.Vector e -> NDArr dim e
 unsafeMkNDArr = MkNDArr
 
@@ -111,6 +114,7 @@ instance (Ix d, Storable r, Num r) => Module r (NDArr d r) where
 -- Property:
 --
 -- prop> fromIndex f `at` i == f i
+{-# INLINE fromIndex #-}
 fromIndex :: forall dim e . (Ix dim, Storable e) => (Index dim -> e) -> NDArr dim e
 fromIndex f = runST $ fromIndexM $ pure . f
 
@@ -125,6 +129,7 @@ fromIndexM f = do
   pure $ MkNDArr vec
 
 -- | O(1). Access array element by its index. This is a total function.
+{-# INLINABLE at #-}
 at :: (Storable e, Ix dim) => NDArr dim e -> Index dim -> e
 (MkNDArr v) `at` i = v Storable.! fromEnum i
 
@@ -132,12 +137,14 @@ infixl 9 `at`
 
 -- | O(1). Extract a "row" from the array. If you're used to C or numpy arrays,
 -- this is similar to @a[i]@.
+{-# INLINABLE row #-}
 row ::
   forall d1 d2 e. (Ix d1, Ix d2, Storable e) =>
   Index d1 -> NDArr (d1 ++ d2) e -> NDArr d2 e
 row i a = rows a `at` i
 
 -- | O(1). Extract all "rows" from the array as an array.
+{-# INLINABLE rows #-}
 rows ::
   forall d1 d2 e. (Ix d2, Storable e) =>
   NDArr (d1 ++ d2) e -> NDArr d1 (NDArr d2 e)
@@ -145,29 +152,36 @@ rows = MkNDArr . Storable.unsafeCast . runNDArr
 
 -- | O(array_size). Extract @`NDArr`@ elements as a list in the order they are
 -- laid out in memory.
+{-# INLINABLE toList #-}
 toList :: Storable e => NDArr d e -> [e]
 toList = Storable.toList . runNDArr
 
 -- | O(1). Flatten an array of arrays into a single array.
+{-# INLINABLE concat #-}
 concat ::
   forall d1 d2 e. (Ix d2, Storable e) =>
   NDArr d1 (NDArr d2 e) -> NDArr (d1 ++ d2) e
 concat = MkNDArr . Storable.unsafeCast . runNDArr
 
 -- | O(array_size). Transform elements of an array.
+{-# INLINABLE map #-}
 map :: (Storable a, Storable b) => (a -> b) -> NDArr d a -> NDArr d b
 map f = MkNDArr . Storable.map f . runNDArr
 
 -- | O(array_size). Combine two arrays into one element-by-element.
+{-# INLINABLE zipWith #-}
 zipWith ::
   (Storable a, Storable b, Storable c) =>
   (a -> b -> c) -> NDArr d a -> NDArr d b -> NDArr d c
 zipWith f (MkNDArr xs) (MkNDArr ys) = MkNDArr (Storable.zipWith f xs ys)
 
 -- | O(array_size). Reduce array using an accumulator function and initial value.
+{-# INLINABLE foldr #-}
 foldr :: Storable a => (a -> r -> r) -> r -> NDArr d a -> r
 foldr f r = Storable.foldr f r . runNDArr
 
+-- | O(lhs_size + rhs_size). Stack arrays along the first axis.
+{-# INLINABLE vstack #-}
 vstack ::
   Storable e => NDArr (k : d) e -> NDArr (l : d) e -> NDArr ((k + l) : d) e
 vstack (MkNDArr xs) (MkNDArr ys) = MkNDArr (xs <> ys)
@@ -208,30 +222,41 @@ instance Stacks i d e r => Stacks (PS i) (n : d) (n : e) (n : r) where
     SW (Proxy @'(s, k, l, t)) -> SW (Proxy @'(n : s, k, l, t))
 
 -- | Sometimes you need to create a witness yourself for this to work.
-stackWithWitness :: Storable e => StackWitness n d1 d2 dr
+{-# INLINABLE stackW #-}
+stackW :: Storable e => StackWitness n d1 d2 dr
                  -> NDArr d1 e -> NDArr d2 e -> NDArr dr e
-stackWithWitness (SW (Proxy @'(s, k, l, t))) xs ys =
+stackW (SW (Proxy @'(s, k, l, t))) xs ys =
   concat $ zipWith vstack (rows @s @(k : t) xs) (rows @s @(l : t) ys)
 
 -- | @stack i@ stacks arrays along the axis @i@. All other axes are required
+{-# INLINABLE stack #-}
 -- to be the same lengths.
 stack ::
   forall n -> (Stacks (Peano n) d1 d2 (Stack (Peano n) d1 d2), Storable e) =>
   NDArr d1 e -> NDArr d2 e -> NDArr (Stack (Peano n) d1 d2) e
-stack n = stackWithWitness (stacks @(Peano n))
+stack n = stackW (stacks @(Peano n))
 
 type family Size d where
   Size '[]    = 1
   Size (x:xs) = x * Size xs
 
--- | Change the shape of an array.
+-- | Change the shape of an array using witness as evidence for size equality.
+{-# INLINABLE reshapeW #-}
+reshapeW :: Size d1 :~: Size d2 -> NDArr d1 e -> NDArr d2 e
+reshapeW Refl = MkNDArr . runNDArr
+
+-- | Change the shape of an array (when GHC manages to solve size equality by
+-- itself).
+{-# INLINABLE reshape #-}
 reshape :: forall d2 -> (Size d1 ~ Size d2) => NDArr d1 e -> NDArr d2 e
-reshape _ = MkNDArr . runNDArr
+reshape _ = reshapeW Refl
 
 -- | Prepend a single dimension of size 1.
+{-# INLINABLE prependDim #-}
 prependDim :: NDArr d e -> NDArr (1:d) e
 prependDim = MkNDArr . runNDArr
 
 -- | Remove a dimension of size 1 from the front.
+{-# INLINABLE stripDim #-}
 stripDim :: NDArr (1:d) e -> NDArr d e
 stripDim = MkNDArr . runNDArr

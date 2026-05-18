@@ -89,10 +89,10 @@ instance Bounded (Index '[]) where
   maxBound = E
 
 class FoldI d where
-  foldI :: r -> (forall d -> KnownNat d => r -> Int -> r) -> Index d -> r
+  foldI :: r -> (forall d' -> KnownNat d' => r -> Int -> r) -> Index d -> r
 
 instance FoldI '[] where
-  foldI !acc f = const acc
+  foldI !acc _ = const acc
 
 instance (KnownNat d, FoldI ds) => FoldI (d:ds) where
   foldI !acc f (ICons h t) = foldI (f d acc h) f t
@@ -129,7 +129,7 @@ instance (KnownNat n, 1 <= n, EnumImpl (Index d), Enum (Index d), Bounded (Index
   toEnum ((`quotRem` enumSize (Index d)) -> (q, r)) = I (q `mod` natVal n) :. toEnum r
   fromEnum = foldI 0 f
     where
-      f :: forall d -> KnownNat d => Int -> Int -> Int
+      f :: forall d' -> KnownNat d' => Int -> Int -> Int
       f n r i = natVal n * r + i
   succ = fromJust . succM
   pred = fromJust . predM

@@ -13,10 +13,11 @@ import Data.Primitive.PrimVar
 import Data.Random.Normal (normalIO)
 import Data.Vector.Storable qualified as Storable
 import Foreign.Storable
-import GHC.TypeLits (type (<=), type (*))
+import GHC.TypeLits (type (*), type (<=))
 import System.Random (mkStdGen, setStdGen)
 import Test.Tasty (localOption)
-import Test.Tasty.Bench (bench, bgroup, defaultMain, env, nf, nfIO, TimeMode(..))
+import Test.Tasty.Bench
+       (TimeMode (..), bench, bgroup, defaultMain, env, nf, nfIO)
 
 type M = 100
 type K = 100
