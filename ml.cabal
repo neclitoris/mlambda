@@ -50,6 +50,7 @@ library
     , massiv
     , mtl
     , netlib-ffi
+    , primitive
     , singletons
     , singletons-base
     , template-haskell
@@ -86,6 +87,7 @@ test-suite ml-test
     , ml
     , mtl
     , netlib-ffi
+    , primitive
     , singletons
     , singletons-base
     , tasty
@@ -121,9 +123,11 @@ benchmark ml-bench
     , mtl
     , netlib-ffi
     , normaldistribution
+    , primitive
     , random
     , singletons
     , singletons-base
+    , tasty
     , tasty-bench
     , template-haskell
     , vector

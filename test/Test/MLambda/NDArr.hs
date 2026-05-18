@@ -66,7 +66,7 @@ propStack = do
   IxI <- pure $ concatIndexI (IxI @p) (IxI @((m1 + m2) : s))
   arr1 <- gen $ genNDArr @(p ++ (m1 : s)) genInt
   arr2 <- gen $ genNDArr @(p ++ (m2 : s)) genInt
-  let arr3 = stackWithWitness (SW (Proxy @'(p, m1, m2, s))) arr1 arr2
+  let arr3 = stackW (SW (Proxy @'(p, m1, m2, s))) arr1 arr2
   s <- gen $ genIndex @s
   p <- gen $ genIndex @p
   m <- gen $ genIndex @'[m1 + m2]

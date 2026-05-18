@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE RequiredTypeArguments #-}
 {-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE ViewPatterns #-}
 -- |
@@ -26,14 +27,20 @@ module MLambda.Index
   , withIx
   -- * Index operations
   , concatIndex
+  -- * Efficient iteration
+  , enumerate
+  , loop_
   ) where
 
 import MLambda.TypeLits
 
+import Control.Monad
 import Data.Bool.Singletons
 import Data.List.Singletons
+import Data.Maybe (fromJust)
 import Data.Singletons
 import GHC.TypeLits.Singletons hiding (natVal)
+
 
 -- | @Index dim@ is the type of indices of multidimensional arrays of dimensions @dim@.
 -- Instances are provided for convenient use:
@@ -81,22 +88,64 @@ instance Bounded (Index '[]) where
   minBound = E
   maxBound = E
 
+class FoldI d where
+  foldI :: r -> (forall d' -> KnownNat d' => r -> Int -> r) -> Index d -> r
+
+instance FoldI '[] where
+  foldI !acc _ = const acc
+
+instance (KnownNat d, FoldI ds) => FoldI (d:ds) where
+  foldI !acc f (ICons h t) = foldI (f d acc h) f t
+
 instance (KnownNat n, 1 <= n, Bounded (Index d)) => Bounded (Index (n:d)) where
   minBound = 0    :. minBound
   maxBound = (-1) :. maxBound
+
+class EnumImpl i where
+  succM :: i -> Maybe i
+  predM :: i -> Maybe i
+
+instance EnumImpl (Index '[]) where
+  succM = const Nothing
+  predM = const Nothing
+
+instance (KnownNat n, 1 <= n, EnumImpl (Index d), Bounded (Index d)) =>
+  EnumImpl (Index (n:d)) where
+  succM (I h :. t)
+    | Just t' <- succM t = Just $ I h :. t'
+    | h < natVal n - 1   = Just $ I h :. minBound
+    | otherwise          = Nothing
+  predM (I h :. t)
+    | Just t' <- predM t = Just $ I h :. t'
+    | h > 0              = Just $ I h :. maxBound
+    | otherwise          = Nothing
 
 instance Enum (Index '[]) where
   toEnum = const E
   fromEnum = const 0
 
-instance (KnownNat n, 1 <= n, Enum (Index d), Bounded (Index d)) =>
+instance (KnownNat n, 1 <= n, EnumImpl (Index d), Enum (Index d), Bounded (Index d), FoldI d) =>
   Enum (Index (n:d)) where
   toEnum ((`quotRem` enumSize (Index d)) -> (q, r)) = I (q `mod` natVal n) :. toEnum r
-  fromEnum (I q :. r) = q * enumSize (Index d) + fromEnum r
-  succ (h :. t) | t == maxBound = succ h :. minBound
-                | otherwise     = h :. succ t
-  pred (h :. t) | t == minBound = pred h :. maxBound
-                | otherwise     = h :. pred t
+  fromEnum = foldI 0 f
+    where
+      f :: forall d' -> KnownNat d' => Int -> Int -> Int
+      f n r i = natVal n * r + i
+  succ = fromJust . succM
+  pred = fromJust . predM
+
+-- | Efficiently (compared to @`enumFromTo`@) enumerate all indices in lexicographic
+-- order.
+enumerate :: forall d -> Ix d => [Index d]
+enumerate d =
+  case IxI @d of
+    EI           -> [E]
+    -- TODO: this performs very poorly, optimize
+    _ :.= IxI @r -> (:.) <$> [minBound..maxBound] <*> enumerate r
+
+-- | Efficiently iterate through indices in lexicographic order.
+loop_ :: forall d m e . (Ix d, Monad m) => (Index d -> m e) -> m ()
+loop_ = forM_ (enumerate d)
 
 -- | Concatenate two indices together
 concatIndex :: forall xs ys . Index xs -> Index ys -> Index (xs ++ ys)
@@ -143,7 +192,7 @@ concatIndexI (i1 :.= d1) d2 = case concatIndexI d1 d2 of
 
 -- | A class used both as a shorthand for useful @`Index`@ instances and a way to obtain
 -- a value of @`IndexI`@.
-class (Bounded (Index dim), Enum (Index dim)) => Ix dim where
+class (Bounded (Index dim), Enum (Index dim), EnumImpl (Index dim), FoldI dim) => Ix dim where
   -- | Returns a term-level witness of @Ix@.
   inst :: IndexI dim
 

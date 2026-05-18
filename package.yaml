@@ -31,6 +31,7 @@ dependencies:
 - haskell-src-meta
 - singletons
 - singletons-base
+- primitive
 # - ghc-typelits-natnormalise
 
 ghc-options:
@@ -61,6 +62,7 @@ benchmarks:
     - ml
     - normaldistribution
     - random
+    - tasty
     - tasty-bench
 
 tests:
@@ -76,8 +78,6 @@ tests:
     - tasty
     - tasty-hunit
     - falsify
-    - singletons
-    - singletons-base
 
 language: GHC2024
 default-extensions:
