@@ -1,4 +1,5 @@
 {-# LANGUAGE RequiredTypeArguments #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
 
 -- |
 -- Module      : MLambda.TypeLits
@@ -22,11 +23,16 @@ module MLambda.TypeLits
   , Peano
   , RNat (..)
   , RPNat (..)
+  , Fin (..)
+  , Fins
+  , At(..)
+  , type (!)
   , ReifiedNat
   , rnat
   , rpnat
   ) where
 
+import Data.Kind
 import Data.Proxy (Proxy (Proxy))
 import GHC.TypeError (ErrorMessage (..), TypeError)
 import GHC.TypeNats hiding (natVal)
@@ -66,6 +72,32 @@ data RNat n where
 data RPNat n where
   RPZ :: RPNat PZ
   RPS :: RPNat n -> RPNat (PS n)
+
+-- | Finite list index.
+type Fin :: [k] -> Type
+data Fin (l :: [k :: Type]) where
+  FZ :: Fin (x : xs)
+  FS :: Fin xs -> Fin (x : xs)
+
+type (!) :: forall l -> Fin l -> Type
+type family (!) (l :: [k :: Type]) (i :: Fin l) where
+  (x ': _) ! FZ = x
+  (_ ': xs) ! (FS i) = xs ! i
+
+type At :: forall {k} {l :: [k]} . Fin l -> Type
+data At (i :: Fin l) where
+  At :: l ! i -> At i
+
+type Map :: forall k l . (k -> l) -> [k] -> [l]
+type family Map f l where
+  Map _ '[] = '[]
+  Map f (x ': xs) = f x ': Map f xs
+
+-- | Creates a list of indices into a type-level list.
+type Fins :: forall {k} (l :: [k]) . [k] -> [Fin l]
+type family Fins (l :: [k :: Type]) where
+  Fins '[] = '[]
+  Fins (x ': xs) = FZ ': Map FS (Fins xs)
 
 -- | A stronger variant of 'KnownNat' which enables induction on type-level naturals.
 class ReifiedNat n where
