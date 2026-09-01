@@ -101,7 +101,7 @@ instance
     , Functional f2 (o1 : i2) o2 e
     , ArgsL i e ~ ArgsL i1 e ++ ArgsL i2 e, SingI (ArgsL i1 e), SingI (ArgsL i2 e))
   => Functional (f2 :.: f1) i o2 e where
-  ((f2 :: f2) :.: (f1 :: f1)) $$ r =
+  (f2 :.: f1) $$ r =
     let sl1 = sing @(ArgsL i1 e)
         sl2 = sing @(ArgsL i2 e)
         sl = sl1 %++ sl2

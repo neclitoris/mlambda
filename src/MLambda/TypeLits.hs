@@ -25,14 +25,9 @@ module MLambda.TypeLits
   , RPNat (..)
   , Fin (..)
   , SFin (..)
-  , AppendFin
-  , headLemma
-  , appendLaw
   , SingFins(..)
-  , PrependFin
   , Fins
   , At(..)
-  , AtEither(..)
   , type (!)
   , ReifiedNat
   , rnat
@@ -42,7 +37,6 @@ module MLambda.TypeLits
 import Data.Kind
 import Data.List.Singletons (Map, SList (..), sMap, type (++))
 import Data.Singletons
-import Data.Type.Equality
 import GHC.TypeError (ErrorMessage (..), TypeError)
 import GHC.TypeNats hiding (natVal)
 
@@ -113,31 +107,10 @@ type At :: forall {l :: [Type]} . Fin l -> Type
 data At (i :: Fin l) where
   At :: forall {l} (i :: Fin l) . l ! i -> At i
 
-type AtEither :: forall {l :: [Type]} {r :: [Type]} . Either (Fin l) (Fin r) -> Type
-data AtEither (i :: Either (Fin l) (Fin r)) where
-  AtLeft :: (i ~ Left i') => l ! i' -> AtEither i
-  AtRight :: (i ~ Right i') => l ! i' -> AtEither i
-
 type AppendFin :: forall r -> Fin l -> Fin (l ++ r)
 type family AppendFin r f where
   AppendFin r FZ = FZ
   AppendFin r (FS s) = FS (AppendFin r s)
-
-sAppendFin :: forall r -> forall l (f :: Fin l) . Sing f -> Sing (AppendFin r f)
-sAppendFin _ SFZ     = SFZ
-sAppendFin r (SFS s) = SFS $ sAppendFin r s
-
-headLemma :: forall x -> ((x:xs) ! FZ) :~: ((x:xs') ! FZ)
-headLemma x = trans (Refl :: ((x:xs) ! FZ) :~: x) (Refl :: x :~: ((x:xs') ! FZ))
-
-appendLaw :: forall r -> forall l (i :: Fin l) . Sing i -> Sing l -> (l ! i) :~: ((l ++ r) ! AppendFin r i)
-appendLaw r si@SFZ (SCons _ _ :: Sing (x:xs)) =
-  case (sAppendFin r si, si) of
-    (SFZ :: Sing (AppendFin r i), _ :: Sing i) ->
-      headLemma @xs @(xs ++ r) x
-appendLaw r (SFS s) (SCons _ sxs) =
-  case appendLaw r s sxs of
-    Refl -> Refl
 
 type PrependFin :: forall l -> Fin r -> Fin (l ++ r)
 type family PrependFin l f where
