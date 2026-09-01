@@ -17,7 +17,7 @@
 #
 # snapshot: ./custom-snapshot.yaml
 # snapshot: https://example.com/snapshots/2024-01-01.yaml
-snapshot: nightly-2025-08-02
+snapshot: nightly-2026-09-01
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -35,7 +35,7 @@ packages:
 # forks / in-progress versions pinned to a git hash. For example:
 #
 extra-deps:
-- falsify-0.2.0@sha256:af5c4142095d05775236c8e18e827d540ed22f57b3b74b2268b32040b514ac88,5451
+- tasty-falsify-0.1.0
 #
 # extra-deps: []
 
@@ -62,6 +62,3 @@ extra-deps:
 #
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor
-allow-newer-deps:
-- falsify
-allow-newer: true

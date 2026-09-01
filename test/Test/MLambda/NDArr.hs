@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE ViewPatterns #-}
 module Test.MLambda.NDArr (testNDArr) where
@@ -15,6 +16,7 @@ import Data.Proxy
 import Data.Singletons
 import GHC.TypeLits.Singletons
 import Prelude.Singletons ((%+))
+import Test.Falsify
 import Test.Falsify.Generator qualified as Gen
 import Test.Falsify.Predicate ((.$))
 import Test.Falsify.Predicate qualified as Pred
