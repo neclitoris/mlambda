@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeAbstractions #-}
 module Test.MLambda.Matrix (testMatrix) where
 
@@ -11,6 +12,7 @@ import Control.Monad
 import Data.Bool.Singletons
 import Data.Singletons
 import GHC.TypeLits.Singletons
+import Test.Falsify
 import Test.Falsify.Predicate ((.$))
 import Test.Falsify.Predicate qualified as Pred
 import Test.Tasty
