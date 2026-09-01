@@ -24,8 +24,15 @@ module MLambda.TypeLits
   , RNat (..)
   , RPNat (..)
   , Fin (..)
+  , SFin (..)
+  , AppendFin
+  , headLemma
+  , appendLaw
+  , SingFins(..)
+  , PrependFin
   , Fins
   , At(..)
+  , AtEither(..)
   , type (!)
   , ReifiedNat
   , rnat
@@ -33,7 +40,9 @@ module MLambda.TypeLits
   ) where
 
 import Data.Kind
-import Data.Proxy (Proxy (Proxy))
+import Data.List.Singletons (Map, SList (..), sMap, type (++))
+import Data.Singletons
+import Data.Type.Equality
 import GHC.TypeError (ErrorMessage (..), TypeError)
 import GHC.TypeNats hiding (natVal)
 
@@ -75,29 +84,81 @@ data RPNat n where
 
 -- | Finite list index.
 type Fin :: [k] -> Type
-data Fin (l :: [k :: Type]) where
+data Fin (l :: [k]) where
   FZ :: Fin (x : xs)
   FS :: Fin xs -> Fin (x : xs)
 
-type (!) :: forall l -> Fin l -> Type
-type family (!) (l :: [k :: Type]) (i :: Fin l) where
+type SFin :: forall k (l :: [k]) . Fin l -> Type
+data SFin (f :: Fin l) where
+  SFZ :: SFin FZ
+  SFS :: forall xs (f :: Fin xs) . SFin f -> SFin (FS f)
+
+type instance Sing = SFin
+
+instance SingKind (Fin l) where
+  type Demote (Fin l) = Fin l
+
+  fromSing SFZ     = FZ
+  fromSing (SFS s) = FS $ fromSing s
+
+  toSing FZ     = SomeSing SFZ
+  toSing (FS s) = (\(SomeSing s') -> SomeSing $ SFS s') $ toSing s
+
+type (!) :: forall k . forall (l :: [k]) -> Fin l -> k
+type family (!) (l :: [k]) (i :: Fin l) where
   (x ': _) ! FZ = x
   (_ ': xs) ! (FS i) = xs ! i
 
-type At :: forall {k} {l :: [k]} . Fin l -> Type
+type At :: forall {l :: [Type]} . Fin l -> Type
 data At (i :: Fin l) where
-  At :: l ! i -> At i
+  At :: forall {l} (i :: Fin l) . l ! i -> At i
 
-type Map :: forall k l . (k -> l) -> [k] -> [l]
-type family Map f l where
-  Map _ '[] = '[]
-  Map f (x ': xs) = f x ': Map f xs
+type AtEither :: forall {l :: [Type]} {r :: [Type]} . Either (Fin l) (Fin r) -> Type
+data AtEither (i :: Either (Fin l) (Fin r)) where
+  AtLeft :: (i ~ Left i') => l ! i' -> AtEither i
+  AtRight :: (i ~ Right i') => l ! i' -> AtEither i
+
+type AppendFin :: forall r -> Fin l -> Fin (l ++ r)
+type family AppendFin r f where
+  AppendFin r FZ = FZ
+  AppendFin r (FS s) = FS (AppendFin r s)
+
+sAppendFin :: forall r -> forall l (f :: Fin l) . Sing f -> Sing (AppendFin r f)
+sAppendFin _ SFZ     = SFZ
+sAppendFin r (SFS s) = SFS $ sAppendFin r s
+
+headLemma :: forall x -> ((x:xs) ! FZ) :~: ((x:xs') ! FZ)
+headLemma x = trans (Refl :: ((x:xs) ! FZ) :~: x) (Refl :: x :~: ((x:xs') ! FZ))
+
+appendLaw :: forall r -> forall l (i :: Fin l) . Sing i -> Sing l -> (l ! i) :~: ((l ++ r) ! AppendFin r i)
+appendLaw r si@SFZ (SCons _ _ :: Sing (x:xs)) =
+  case (sAppendFin r si, si) of
+    (SFZ :: Sing (AppendFin r i), _ :: Sing i) ->
+      headLemma @xs @(xs ++ r) x
+appendLaw r (SFS s) (SCons _ sxs) =
+  case appendLaw r s sxs of
+    Refl -> Refl
+
+type PrependFin :: forall l -> Fin r -> Fin (l ++ r)
+type family PrependFin l f where
+  PrependFin '[] s = s
+  PrependFin (x:xs) s = FS (PrependFin xs s)
 
 -- | Creates a list of indices into a type-level list.
-type Fins :: forall {k} (l :: [k]) . [k] -> [Fin l]
+type Fins :: forall {k} . forall (l :: [k]) -> [Fin l]
 type family Fins (l :: [k :: Type]) where
   Fins '[] = '[]
-  Fins (x ': xs) = FZ ': Map FS (Fins xs)
+  Fins (x ': xs) = FZ ': Map (TyCon1 FS) (Fins xs)
+
+class SingFins l where
+  singFins :: Sing (Fins l)
+
+instance SingI l => SingFins l where
+  singFins =
+    case sing @l of
+      SNil -> SNil
+      SCons (_ :: Sing x) (sxs :: Sing xs) -> withSingI sxs $
+        SCons SFZ (sMap @(Fin xs) @(Fin (x:xs)) @(TyCon1 FS) (SLambda SFS) (singFins @xs))
 
 -- | A stronger variant of 'KnownNat' which enables induction on type-level naturals.
 class ReifiedNat n where
