@@ -13,7 +13,7 @@ import Data.Primitive.PrimVar
 import Data.Random.Normal (normalIO)
 import Data.Vector.Storable qualified as Storable
 import Foreign.Storable
-import GHC.TypeLits (type (*), type (<=))
+import GHC.TypeLits hiding (natVal)
 import System.Random (mkStdGen, setStdGen)
 import Test.Tasty (localOption)
 import Test.Tasty.Bench
@@ -32,7 +32,7 @@ mkNd m n gen = fromIndexM @'[m, n] $ const gen
 
 mkVec :: forall m n -> (KnownNat m, KnownNat n, Storable a)
       => IO a -> IO (Storable.Vector a)
-mkVec m n gen = Storable.replicateM (natVal n * natVal m) $ gen
+mkVec m n = Storable.replicateM (natVal n * natVal m)
 
 mkMassiv :: forall m n -> (KnownNat m, KnownNat n, Storable a) => IO a -> IO (Array S Ix2 a)
 mkMassiv m n gen = freeze Seq =<< makeMArrayS (Sz2 (natVal n) (natVal m)) (const gen)
